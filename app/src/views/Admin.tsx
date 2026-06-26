@@ -8,7 +8,7 @@ import { LocalSyncAdapter, applyPayload, buildPayload, deserializePayload, seria
 import type { LinkConflict } from '../lib/sync'
 import type { AdminSettings, PmoData } from '../data/types'
 
-type FieldType = 'text' | 'number' | 'toggle' | 'select'
+type FieldType = 'text' | 'number' | 'toggle' | 'select' | 'color'
 interface Field {
   section: string
   path: string
@@ -21,11 +21,14 @@ interface Field {
   options?: { v: string; l: string }[]
 }
 
-const SECTIONS = ['General', 'Canvas schema', 'Plan mapping', 'Coverage rules', 'Sync', 'Governance', 'Data management'] as const
+const SECTIONS = ['General', 'Branding', 'Canvas schema', 'Plan mapping', 'Coverage rules', 'Sync', 'Governance', 'Data management'] as const
 
 const FIELDS: Field[] = [
   { section: 'General', path: 'general.programName', label: 'Program name', help: 'Shown across the app header and exports.', type: 'text' },
   { section: 'General', path: 'general.autoAnalyze', label: 'Auto-run AI association on dataset edits', help: 'Re-score coverage whenever environment data changes.', type: 'toggle' },
+
+  { section: 'Branding', path: 'theme.primary', label: 'Primary color', help: 'Brand mark, active nav, primary buttons. Paste your brand hex.', type: 'color' },
+  { section: 'Branding', path: 'theme.accent', label: 'Accent color', help: 'AI / secondary highlights (e.g. the Ask AI button).', type: 'color' },
 
   { section: 'Canvas schema', path: 'canvas.minWidth', label: 'Minimum width (px)', help: 'Boxes and firewalls cannot be resized narrower than this.', type: 'number', min: 40, max: 1000, step: 2 },
   { section: 'Canvas schema', path: 'canvas.minHeight', label: 'Minimum height (px)', help: 'Containers and notes cannot be resized shorter than this.', type: 'number', min: 24, max: 1000, step: 2 },
@@ -47,6 +50,8 @@ const FIELDS: Field[] = [
   { section: 'Governance', path: 'governance.lockManualLinks', label: 'Protect manual plan links', help: 'AI re-analysis never overwrites links you set by hand.', type: 'toggle' },
   { section: 'Governance', path: 'governance.conflictStrategy', label: 'Conflict strategy', help: 'How sync resolves competing edits to mappings.', type: 'select', options: [{ v: 'review', l: 'Reviewable conflicts' }, { v: 'lww', l: 'Last write wins' }] },
 ]
+
+const hex = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i
 
 function getPath(obj: any, path: string): any {
   return path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj)
@@ -192,7 +197,12 @@ export function Admin() {
           {issue && <div style={{ font: "600 11px 'Libre Franklin'", color: '#C2410C', marginTop: 3 }}>⚠ {issue.message}</div>}
         </div>
         <div style={{ flex: 'none', width: 200, display: 'flex', justifyContent: 'flex-end' }}>
-          {f.type === 'toggle' ? (
+          {f.type === 'color' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', justifyContent: 'flex-end' }}>
+              <input type="color" value={hex.test(String(val)) ? String(val) : '#000000'} onChange={(e) => update(f.path, e.target.value)} style={{ width: 34, height: 30, border: '1px solid #E4E8EE', borderRadius: 6, background: 'none', cursor: 'pointer', padding: 0 }} />
+              <input value={val ?? ''} onChange={(e) => update(f.path, e.target.value)} placeholder="#000000" style={{ ...inputStyle, width: 110, fontFamily: "'IBM Plex Mono',monospace", borderColor: issue ? '#E6A08F' : '#E4E8EE' }} />
+            </div>
+          ) : f.type === 'toggle' ? (
             <button
               onClick={() => update(f.path, !val)}
               style={{ border: '1px solid ' + (val ? '#BFE0CF' : '#D5DBE3'), background: val ? '#E4EEE9' : '#fff', color: val ? '#2F6B53' : '#5A6473', borderRadius: 7, padding: '7px 14px', font: "700 11px 'IBM Plex Mono',monospace", cursor: 'pointer' }}

@@ -261,6 +261,12 @@ export interface AdminSettings {
     programName: string
     autoAnalyze: boolean
   }
+  theme: {
+    /** Primary brand color — brand mark, active nav, primary buttons. */
+    primary: string
+    /** Accent color — AI/secondary highlights. */
+    accent: string
+  }
   canvas: {
     minWidth: number
     minHeight: number

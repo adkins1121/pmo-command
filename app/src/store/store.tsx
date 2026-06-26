@@ -227,4 +227,10 @@ export function useSync(): SyncApi {
   return useStore().sync
 }
 
+/** Live brand colors from admin settings, with safe defaults. */
+export function useTheme(): { primary: string; accent: string } {
+  const t = useStore().data.adminSettings?.theme
+  return { primary: t?.primary || '#4A6491', accent: t?.accent || '#1B9C8E' }
+}
+
 export { KEY }

@@ -1,10 +1,10 @@
-import { useStore } from '../store/store'
+import { useTheme } from '../store/store'
 import { useUI } from '../store/ui'
-import { ACCENT, VIEWS } from '../lib/theme'
+import { VIEWS } from '../lib/theme'
 
 export function NavFlyout() {
   const ui = useUI()
-  useStore() // keep subscription parity; nav is purely UI
+  const { primary: ACCENT } = useTheme()
   if (!ui.navOpen) return null
 
   const brandStyle: React.CSSProperties = {
