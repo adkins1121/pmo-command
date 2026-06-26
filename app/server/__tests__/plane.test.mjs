@@ -79,6 +79,28 @@ describe('plane connector pull', () => {
     expect(seen).toContain('/workspaces/amdg/projects/p1/issues/')
   })
 
+  it('push() PATCHes only linked projects and counts results', async () => {
+    const calls = []
+    const p = createPlane({
+      apiToken: 't',
+      workspace: 'amdg',
+      fetchImpl: (url, init) => {
+        calls.push({ url, method: init.method })
+        return jsonRes(url.includes('pr_bad') ? 400 : 200, {})
+      },
+    })
+    const r = await p.push([
+      { planeProjectId: 'pr_ok', name: 'A', description: 'a' },
+      { name: 'no id — skipped' },
+      { planeProjectId: 'pr_bad', name: 'B' },
+    ])
+    expect(r).toMatchObject({ ok: true, pushed: 1, failed: 1 })
+    // only the two linked projects were PATCHed
+    expect(calls).toHaveLength(2)
+    expect(calls.every((c) => c.method === 'PATCH')).toBe(true)
+    expect(calls[0].url).toContain('/projects/pr_ok/')
+  })
+
   it('unwraps paginated { results } responses', async () => {
     const p = createPlane({
       apiToken: 't',

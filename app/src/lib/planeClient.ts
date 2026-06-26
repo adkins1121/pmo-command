@@ -39,3 +39,29 @@ export async function pullPlane(fetchImpl: FetchLike = fetch): Promise<PlanePull
   }
   return (await res.json()) as PlanePull
 }
+
+export interface PlanePushItem {
+  planeProjectId: string
+  name: string
+  description?: string
+}
+export interface PlanePushResult {
+  ok: boolean
+  pushed: number
+  failed: number
+  pushedAt: string
+}
+
+export async function pushPlane(streams: PlanePushItem[], fetchImpl: FetchLike = fetch): Promise<PlanePushResult> {
+  const res = await fetchImpl('/api/plane/push', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ streams }),
+  })
+  if (res.status === 501) throw new Error('Plane is not configured on the server (set PLANE_API_TOKEN + PLANE_WORKSPACE).')
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error('Force update failed (' + res.status + ')' + (body && body.message ? ': ' + body.message : ''))
+  }
+  return (await res.json()) as PlanePushResult
+}

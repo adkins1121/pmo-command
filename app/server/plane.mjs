@@ -90,5 +90,29 @@ export function createPlane({
     return { ok: true, pulledAt: new Date().toISOString(), workspace, projects: out }
   }
 
-  return { enabled, status, pull }
+  // Force-update: push the app's name + description onto each already-linked
+  // Plane project. Bounded + reversible (text fields only); never creates or
+  // deletes projects, so it can't clobber unrelated Plane structure.
+  async function push(streams) {
+    if (!enabled) throw new Error('plane not configured')
+    let pushed = 0
+    let failed = 0
+    for (const s of streams || []) {
+      if (!s.planeProjectId) continue
+      try {
+        const res = await fetchImpl(root + '/workspaces/' + workspace + '/projects/' + s.planeProjectId + '/', {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ name: s.name, description: s.description || '' }),
+        })
+        if (res.ok) pushed++
+        else failed++
+      } catch {
+        failed++
+      }
+    }
+    return { ok: true, pushed, failed, pushedAt: new Date().toISOString() }
+  }
+
+  return { enabled, status, pull, push }
 }

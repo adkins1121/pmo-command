@@ -71,6 +71,18 @@ async function handleApi(req, res, urlPath) {
     const result = await plane.pull()
     return send(res, 200, result)
   }
+  if (urlPath === '/api/plane/push') {
+    if (req.method !== 'POST') return send(res, 405, { error: 'method-not-allowed' })
+    if (!plane.enabled) return send(res, 501, { error: 'plane-not-configured' })
+    let body
+    try {
+      body = JSON.parse(await readBody(req))
+    } catch {
+      return send(res, 400, { error: 'invalid-json' })
+    }
+    const result = await plane.push(Array.isArray(body && body.streams) ? body.streams : [])
+    return send(res, 200, result)
+  }
 
   if (urlPath === '/api/state') {
     if (!store.enabled) return send(res, 501, { error: 'persistence-not-configured' })

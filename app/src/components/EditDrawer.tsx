@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/store'
 import { useUI } from '../store/ui'
 import { nid } from '../data/helpers'
-import { buildBrief, pushToPlane } from '../lib/plane'
-import { fetchPlaneStatus, pullPlane } from '../lib/planeClient'
+import { pushToPlane } from '../lib/plane'
+import { fetchPlaneStatus, pullPlane, pushPlane } from '../lib/planeClient'
 import type { PlaneStatus } from '../lib/planeClient'
 import { mergePlanePull } from '../lib/planeMerge'
 import { exportJson, freshDefaults, readImportFile } from '../lib/io'
@@ -76,7 +76,7 @@ export function EditDrawer() {
           {tab === 'structure' && <StructureTab data={data} setData={setData} />}
           {tab === 'env' && <EnvTab data={data} setData={setData} />}
           {tab === 'data' && <DataTab data={data} setData={setData} replaceData={replaceData} fileRef={fileRef} />}
-          {tab === 'plane' && <PlaneTab data={data} setData={setData} ui={ui} />}
+          {tab === 'plane' && <PlaneTab data={data} setData={setData} />}
         </div>
         <input
           type="file" accept="application/json" ref={fileRef} style={{ display: 'none' }}
@@ -294,13 +294,12 @@ function DataTab({ data, setData, replaceData, fileRef }: { data: PmoData; setDa
   )
 }
 
-function PlaneTab({ data, setData, ui }: { data: PmoData; setData: SetData; ui: ReturnType<typeof useUI> }) {
-  const [copied, setCopied] = useState(false)
-  const [pushed, setPushed] = useState('')
+function PlaneTab({ data, setData }: { data: PmoData; setData: SetData }) {
   const [planeStatus, setPlaneStatus] = useState<PlaneStatus | null>(null)
   const [pulling, setPulling] = useState(false)
   const [pullMsg, setPullMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
-  const brief = buildBrief(data)
+  const [pushing, setPushing] = useState(false)
+  const [pushMsg, setPushMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
   useEffect(() => {
     let live = true
@@ -320,6 +319,26 @@ function PlaneTab({ data, setData, ui }: { data: PmoData; setData: SetData; ui: 
       setPullMsg({ kind: 'err', text: err instanceof Error ? err.message : 'Pull failed.' })
     } finally {
       setPulling(false)
+    }
+  }
+
+  const runPush = async () => {
+    setPushing(true)
+    setPushMsg(null)
+    try {
+      if (planeStatus?.configured) {
+        const items = data.streams.filter((s) => s.planeProjectId).map((s) => ({ planeProjectId: s.planeProjectId as string, name: s.name, description: s.blurb || '' }))
+        const r = await pushPlane(items)
+        setData((d) => pushToPlane(d))
+        setPushMsg({ kind: 'ok', text: `Forced update to Plane — ${r.pushed} project${r.pushed === 1 ? '' : 's'} updated${r.failed ? `, ${r.failed} failed` : ''}.` })
+      } else {
+        setData((d) => pushToPlane(d))
+        setPushMsg({ kind: 'ok', text: 'Structure marked synced. Connect Plane on the server for a live push.' })
+      }
+    } catch (err) {
+      setPushMsg({ kind: 'err', text: err instanceof Error ? err.message : 'Force update failed.' })
+    } finally {
+      setPushing(false)
     }
   }
 
@@ -391,28 +410,14 @@ function PlaneTab({ data, setData, ui }: { data: PmoData; setData: SetData; ui: 
       ))}
 
       <button
-        onClick={() => {
-          setData((d) => pushToPlane(d))
-          setPushed('Pushed structure to Plane — initiatives & projects synced, source links written back.')
-          setTimeout(() => setPushed(''), 3000)
-        }}
-        style={{ width: '100%', marginTop: 12, background: '#3E7C6A', color: '#fff', border: 'none', borderRadius: 8, padding: '11px', font: "700 12.5px 'Libre Franklin'", cursor: 'pointer' }}
+        onClick={runPush}
+        disabled={pushing}
+        style={{ width: '100%', marginTop: 14, background: pushing ? '#3A4456' : '#1B2330', color: '#fff', border: 'none', borderRadius: 8, padding: '12px', font: "700 12.5px 'Libre Franklin'", cursor: pushing ? 'not-allowed' : 'pointer' }}
       >
-        ⟳ Push all structure to Plane
+        {pushing ? '⟳ Updating…' : '⟳ Force update to Plane'}
       </button>
-      {pushed && <div style={{ marginTop: 9, font: "500 11px 'Libre Franklin'", color: '#2F6B53', background: '#E4EEE9', borderRadius: 6, padding: '8px 10px' }}>{pushed}</div>}
+      {pushMsg && <div style={{ marginTop: 9, font: "500 11px 'Libre Franklin'", color: pushMsg.kind === 'ok' ? '#2F6B53' : '#A8553F', background: pushMsg.kind === 'ok' ? '#E4EEE9' : '#F6EAE6', borderRadius: 6, padding: '8px 10px' }}>{pushMsg.text}</div>}
       {!data.plane.workspaceSlug && <div style={{ marginTop: 8, font: "500 10.5px 'Libre Franklin'", color: '#A8553F' }}>Set a workspace slug first so View-in-Plane links resolve.</div>}
-
-      <div style={{ ...lbl, fontSize: 10, margin: '18px 0 8px' }}>Provisioning brief</div>
-      <textarea readOnly value={brief} style={{ width: '100%', minHeight: 200, border: '1px solid #E4E8EE', borderRadius: 6, padding: 11, font: "400 10.5px/1.5 'IBM Plex Mono',monospace", color: '#41495A', background: '#FCFDFE', resize: 'vertical' }} />
-      <button
-        className="mini-btn"
-        style={{ marginTop: 8, padding: '8px 14px' }}
-        onClick={() => { try { navigator.clipboard.writeText(brief) } catch { /* ignore */ } setCopied(true); setTimeout(() => setCopied(false), 1500) }}
-      >
-        {copied ? '✓ Copied' : '⧉ Copy brief'}
-      </button>
-      <span style={{ marginLeft: 10, font: "500 10px 'IBM Plex Mono',monospace", color: '#B7BEC9' }}>{ui.view === 'objectives' ? 'Objectives view shows sync state' : ''}</span>
     </div>
   )
 }
