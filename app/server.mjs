@@ -14,6 +14,7 @@ import { createServer } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import { join, normalize, extname } from 'node:path'
 import { createStore } from './server/store.mjs'
+import { createPlane } from './server/plane.mjs'
 
 const DIST = join(process.cwd(), 'dist')
 const PORT = Number(process.env.PORT) || 8080
@@ -23,6 +24,7 @@ const AUTH_ON = Boolean(USER && PASS)
 const MAX_BODY = 8 * 1024 * 1024 // 8 MB cap on state uploads
 
 const store = createStore()
+const plane = createPlane()
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -60,7 +62,15 @@ function readBody(req) {
 }
 
 async function handleApi(req, res, urlPath) {
-  if (urlPath === '/api/config') return send(res, 200, { persistence: store.enabled })
+  if (urlPath === '/api/config') return send(res, 200, { persistence: store.enabled, plane: plane.enabled })
+
+  if (urlPath === '/api/plane/status') return send(res, 200, plane.status())
+  if (urlPath === '/api/plane/pull') {
+    if (req.method !== 'POST') return send(res, 405, { error: 'method-not-allowed' })
+    if (!plane.enabled) return send(res, 501, { error: 'plane-not-configured' })
+    const result = await plane.pull()
+    return send(res, 200, result)
+  }
 
   if (urlPath === '/api/state') {
     if (!store.enabled) return send(res, 501, { error: 'persistence-not-configured' })
@@ -101,7 +111,7 @@ const server = createServer(async (req, res) => {
     if (u !== USER || p !== PASS) return unauthorized(res)
   }
 
-  if (urlPath === '/api/config' || urlPath === '/api/state') {
+  if (urlPath === '/api/config' || urlPath === '/api/state' || urlPath.startsWith('/api/plane/')) {
     try {
       return await handleApi(req, res, urlPath)
     } catch (err) {
