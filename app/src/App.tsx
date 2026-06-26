@@ -6,6 +6,8 @@ import { Dashboard } from './views/Dashboard'
 import { Focus } from './views/Focus'
 import { Objectives } from './views/Objectives'
 import { Board } from './views/Board'
+import { Activity } from './views/Activity'
+import { Integrations } from './views/Integrations'
 import { Placeholder } from './views/Placeholder'
 
 export function App() {
@@ -24,6 +26,12 @@ export function App() {
       break
     case 'board':
       view = <Board />
+      break
+    case 'activity':
+      view = <Activity />
+      break
+    case 'integrations':
+      view = <Integrations />
       break
     default:
       view = <Placeholder />

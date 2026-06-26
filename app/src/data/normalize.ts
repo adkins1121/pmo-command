@@ -47,6 +47,7 @@ export function normalize(d: any): PmoData {
   ;(d.todos || []).forEach((t: any) => {
     if (t.committed === undefined) t.committed = true
     if (t.done && t.completedAt === undefined) t.completedAt = Date.now() - 3 * DAY
+    if (t.createdAt === undefined) t.createdAt = t.completedAt || Date.now() - 2 * DAY
     if (t.desc === undefined) t.desc = ''
     if (t.phaseId === undefined) t.phaseId = (d.phases[0] || {}).id
     if (t.objectiveId === undefined) t.objectiveId = ((d.objectives || [])[1] || (d.objectives || [])[0] || {}).id

@@ -68,6 +68,16 @@ export interface Objective {
   planeInitiativeId: string
 }
 
+/** Provenance for anything generated from a connected source. */
+export interface SourceRef {
+  /** Human label of the originating source, e.g. "Fireflies", "Outlook", "Claude". */
+  label: string
+  /** Deep link back to the originating artifact (thread, transcript, Plane item…). */
+  url?: string
+  /** Short descriptor of the specific artifact, e.g. "Re: QBO export". */
+  ref?: string
+}
+
 export interface Todo {
   id: string
   text: string
@@ -76,11 +86,14 @@ export interface Todo {
   done: boolean
   committed?: boolean
   completedAt?: number | null
+  createdAt?: number
   desc?: string
   phaseId?: string
   objectiveId?: string
   ownerId?: string
   workType?: WorkType
+  /** Where this task came from (required for generated/connector-fed tasks). */
+  sourceRef?: SourceRef
 }
 
 export interface InboxMsg {
@@ -212,6 +225,8 @@ export interface Insight {
   move: string
   altitude: 'critical' | 'high' | 'medium'
   streamId?: string
+  /** Provenance — generated insights must cite the source that produced them. */
+  sourceRef?: SourceRef
 }
 
 export interface DepNote {
@@ -253,6 +268,7 @@ export type ViewId =
   | 'dashboard'
   | 'focus'
   | 'standup'
+  | 'activity'
   | 'objectives'
   | 'board'
   | 'timeline'

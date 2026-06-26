@@ -6,6 +6,7 @@ export const VIEWS: { id: import('../data/types').ViewId; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'focus', label: 'My Focus' },
   { id: 'standup', label: 'Daily Standup' },
+  { id: 'activity', label: 'Activity Feed' },
   { id: 'objectives', label: 'Objectives' },
   { id: 'board', label: 'Board' },
   { id: 'timeline', label: 'Timeline' },
