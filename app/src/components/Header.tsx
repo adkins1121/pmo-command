@@ -457,7 +457,7 @@ export function Header() {
       {/* right cluster */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <button
-          onClick={() => ui.set({ navOpen: false, headerMenuOpen: false })}
+          onClick={() => ui.update((s) => ({ aiOpen: !s.aiOpen }))}
           title="AI assistant — search your connectors"
           style={{
             display: 'flex',
@@ -471,7 +471,6 @@ export function Header() {
             font: "700 12px 'Libre Franklin'",
             cursor: 'pointer',
             boxShadow: '0 2px 8px rgba(29,111,224,.34)',
-            opacity: 0.6,
           }}
         >
           ✦ Ask AI

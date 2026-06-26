@@ -1,6 +1,7 @@
 import { useStore } from '../store/store'
 import { useUI } from '../store/ui'
 import { buildMaps } from '../lib/derive'
+import { planeUrl } from '../lib/activity'
 import { nid } from '../data/helpers'
 import type { PmoData, Service, Status, Stream, Todo } from '../data/types'
 
@@ -599,10 +600,23 @@ export function ItemModal() {
         </div>
 
         {/* footer */}
-        <div style={{ borderTop: '1px solid #ECEEF2', padding: '14px 26px', display: 'flex', gap: 12 }}>
+        <div style={{ borderTop: '1px solid #ECEEF2', padding: '14px 26px', display: 'flex', gap: 12, alignItems: 'center' }}>
           <button onClick={onArchive} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #E6A08F', color: '#C2410C', background: '#fff', borderRadius: 9, padding: '10px 18px', font: "600 13px 'Libre Franklin'", cursor: 'pointer' }}>
             ▣ Archive
           </button>
+          {itemView.isStream && (() => {
+            const raw = data.streams.find((x) => x.id === itemId)
+            const url = raw ? planeUrl(data, raw) : undefined
+            return url ? (
+              <a href={url} target="_blank" rel="noopener" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, border: 'none', color: '#fff', background: '#1B2330', borderRadius: 9, padding: '10px 18px', font: "600 13px 'Libre Franklin'" }}>
+                ↗ View in Plane
+              </a>
+            ) : (
+              <span title="Not in Plane yet — push it from the Plane sync tab" style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#A6AEBA', background: '#EEF1F4', borderRadius: 9, padding: '10px 18px', font: "600 13px 'Libre Franklin'", cursor: 'not-allowed' }}>
+                View in Plane
+              </span>
+            )
+          })()}
         </div>
       </div>
     </div>

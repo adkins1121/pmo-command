@@ -45,6 +45,21 @@ export interface UIState {
   fSuOwner: string
   fSuType: string
   fSuSource: string
+
+  // AI assistant flyout
+  aiOpen: boolean
+  aiQuery: string
+  aiLoading: boolean
+  aiError: string
+  aiAnswer: string
+  aiResults: AiResult[] | null
+}
+
+export interface AiResult {
+  source: string
+  title: string
+  snippet: string
+  date: string
 }
 
 const initial: UIState = {
@@ -74,6 +89,12 @@ const initial: UIState = {
   fSuOwner: 'mine',
   fSuType: 'all',
   fSuSource: 'all',
+  aiOpen: false,
+  aiQuery: '',
+  aiLoading: false,
+  aiError: '',
+  aiAnswer: '',
+  aiResults: null,
 }
 
 interface UICtx extends UIState {
