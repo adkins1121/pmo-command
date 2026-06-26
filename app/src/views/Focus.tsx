@@ -1,0 +1,394 @@
+import { useStore } from '../store/store'
+import { useUI } from '../store/ui'
+import { buildMaps } from '../lib/derive'
+import { mix } from '../data/helpers'
+import { nid } from '../data/helpers'
+import type { Priority } from '../data/types'
+
+const prMeta: Record<string, { l: string; c: string; bg: string }> = {
+  high: { l: 'High', c: '#A8553F', bg: '#F6EAE6' },
+  med: { l: 'Med', c: '#B07D3C', bg: '#F7EFE2' },
+  low: { l: 'Low', c: '#5A6473', bg: '#EEF1F4' },
+}
+const srcMeta: Record<string, { l: string; c: string }> = {
+  manual: { l: 'AI', c: '#0FB5BA' },
+  email: { l: 'OUTLOOK', c: '#4A6491' },
+  teams: { l: 'TEAMS', c: '#5B5391' },
+  plane: { l: 'PLANE', c: '#3E7C6A' },
+}
+const ord: Record<string, number> = { high: 0, med: 1, low: 2 }
+const rank = (p: string) => (ord[p] == null ? 9 : ord[p])
+const prOpts = [
+  { v: 'high', l: 'High' },
+  { v: 'med', l: 'Med' },
+  { v: 'low', l: 'Low' },
+]
+
+export function Focus() {
+  const { data, setData } = useStore()
+  const ui = useUI()
+  const { enrich, phaseMap, objMap } = buildMaps(data)
+
+  const myWork = data.streams
+    .filter((s) => s.mine && s.status !== 'done')
+    .map((s) => {
+      const e = enrich(s)
+      const ph = phaseMap[s.phaseId] || ({} as any)
+      const ob = objMap[s.objectiveId || ''] || ({} as any)
+      return { ...e, phaseShort: 'P' + (ph.n || '?'), objCode: ob.code || '—' }
+    })
+
+  const todosView = (data.todos || [])
+    .slice()
+    .sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) || rank(a.priority) - rank(b.priority))
+    .map((t) => {
+      const p = prMeta[t.priority] || prMeta.low
+      const sm = srcMeta[t.source] || srcMeta.manual
+      return {
+        id: t.id,
+        text: t.text,
+        done: t.done,
+        priority: t.priority,
+        prC: p.c,
+        prBg: p.bg,
+        srcL: sm.l,
+        srcC: sm.c,
+        srcBg: mix(sm.c, 0.88),
+        accent: p.c,
+        cardBg: t.done ? '#F6F8FA' : '#fff',
+        check: t.done ? '☑' : '☐',
+        textStyle: t.done
+          ? ({ textDecoration: 'line-through', color: '#A6AEBA' } as React.CSSProperties)
+          : ({ color: '#1B2330' } as React.CSSProperties),
+      }
+    })
+
+  const outlookOn = !!(data.connections && data.connections.outlook && data.connections.outlook.connected)
+  const inboxView = (data.inbox || [])
+    .slice()
+    .sort((a, b) => rank(a.priority) - rank(b.priority))
+    .map((m) => {
+      const p = prMeta[m.priority] || prMeta.low
+      const en = !!m.link || outlookOn
+      return {
+        id: m.id,
+        subject: m.subject,
+        from: m.from,
+        snippet: m.snippet,
+        age: m.age,
+        priority: m.priority,
+        prC: p.c,
+        prBg: p.bg,
+        dot: m.unread ? '#4A6491' : 'transparent',
+        openUrl: m.link || 'https://outlook.office.com/mail/',
+        openTitle: en ? 'Open in Outlook' : 'Connect Outlook to open',
+        openStyle: en
+          ? ({ color: '#4A6491', cursor: 'pointer' } as React.CSSProperties)
+          : ({ color: '#C5CCD6', cursor: 'not-allowed', pointerEvents: 'none' } as React.CSSProperties),
+      }
+    })
+  const todoOpen = (data.todos || []).filter((t) => !t.done).length
+
+  const onAddTodo = () =>
+    setData((d) => {
+      const active = d.streams.filter((s) => s.status !== 'done')
+      let phaseId = (d.phases[0] || ({} as any)).id
+      for (const p of d.phases) {
+        if (active.some((s) => s.phaseId === p.id)) {
+          phaseId = p.id
+          break
+        }
+      }
+      const objCount: Record<string, number> = {}
+      active.forEach((s) => {
+        objCount[s.objectiveId || ''] = (objCount[s.objectiveId || ''] || 0) + 1
+      })
+      let objectiveId = ((d.objectives || [])[0] || ({} as any)).id
+      let bestO = -1
+      ;(d.objectives || []).forEach((o) => {
+        const c = objCount[o.id] || 0
+        if (c > bestO) {
+          bestO = c
+          objectiveId = o.id
+        }
+      })
+      const ownCount: Record<string, number> = {}
+      active
+        .filter((s) => s.objectiveId === objectiveId)
+        .forEach((s) => {
+          ownCount[s.ownerId] = (ownCount[s.ownerId] || 0) + 1
+        })
+      let ownerId = 'o_amdg'
+      let bestW = -1
+      Object.keys(ownCount).forEach((k) => {
+        if (ownCount[k] > bestW) {
+          bestW = ownCount[k]
+          ownerId = k
+        }
+      })
+      ;(d.todos = d.todos || []).unshift({
+        id: nid('td'),
+        text: 'New ad-hoc task',
+        desc: '',
+        source: 'manual',
+        priority: 'med',
+        done: false,
+        committed: true,
+        phaseId,
+        objectiveId,
+        ownerId,
+        workType: 'Task',
+      })
+    })
+
+  const panelBase: React.CSSProperties = {
+    background: '#fff',
+    border: '1px solid #E4E8EE',
+    borderRadius: 4,
+    padding: '15px 16px',
+    boxShadow: '0 1px 2px rgba(20,30,50,.05)',
+  }
+
+  return (
+    <div style={{ maxWidth: 1340, margin: '0 auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div>
+          <div style={{ font: "700 19px 'Libre Franklin'", color: '#1B2330' }}>My focus</div>
+          <div style={{ font: "400 12.5px 'Libre Franklin'", color: '#7A8494', marginTop: 2 }}>
+            Your work, unplanned to-dos, and what's hot in the inbox
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span
+            style={{
+              font: "600 9px 'IBM Plex Mono',monospace",
+              color: '#A6AEBA',
+              textTransform: 'uppercase',
+              letterSpacing: '.06em',
+            }}
+          >
+            Viewing as
+          </span>
+          <input
+            className="ed-in"
+            style={{ width: 172 }}
+            value={data.meName}
+            onChange={(e) => setData((d) => void (d.meName = e.target.value))}
+          />
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(370px,1fr))', gap: 14, alignItems: 'start' }}>
+        {/* My outstanding work items */}
+        <div style={panelBase}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 11 }}>
+            <span style={{ font: "700 14px 'Libre Franklin'", color: '#1B2330' }}>My outstanding work items</span>
+            <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: '#9AA3B2' }}>from Plane</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {myWork.map((s) => (
+              <div
+                key={s.id}
+                onDoubleClick={() => ui.set({ selectedId: s.id, itemId: s.id, itemKind: 'stream' })}
+                style={{
+                  border: '1px solid #E7E9EE',
+                  borderLeft: '4px solid ' + s.color,
+                  borderRadius: 3,
+                  padding: '8px 10px',
+                  cursor: 'pointer',
+                  background: s.cardBg,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ font: "600 12px 'Libre Franklin'", color: '#1B2330' }}>{s.name}</span>
+                  <span style={{ font: "500 9px 'IBM Plex Mono',monospace", color: '#A6AEBA' }}>{s.code}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      font: "600 8.5px 'IBM Plex Mono',monospace",
+                      padding: '2px 7px',
+                      borderRadius: 10,
+                      background: s.pillBg,
+                      color: s.pillColor,
+                    }}
+                  >
+                    {s.pillText}
+                  </span>
+                  <span style={{ font: "500 9px 'IBM Plex Mono',monospace", color: '#7A8494' }}>
+                    {s.objCode} · {s.phaseShort} · {s.ownerName}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Ad hoc to-dos */}
+        <div style={panelBase}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 11 }}>
+            <span style={{ font: "700 14px 'Libre Franklin'", color: '#1B2330' }}>Ad hoc to-dos</span>
+            <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: '#9AA3B2' }}>{todoOpen} open</span>
+          </div>
+          <button onClick={onAddTodo} className="mini-btn" style={{ width: '100%', marginBottom: 9 }}>
+            + New ad-hoc task
+          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {todosView.map((t) => (
+              <div
+                key={t.id}
+                onDoubleClick={() => ui.set({ itemId: t.id, itemKind: 'todo' })}
+                style={{
+                  border: '1px solid #E7E9EE',
+                  borderLeft: '4px solid ' + t.accent,
+                  borderRadius: 3,
+                  padding: '8px 10px',
+                  cursor: 'pointer',
+                  background: t.cardBg,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setData((d) => {
+                        const td = (d.todos || []).find((x) => x.id === t.id)
+                        if (td) {
+                          td.done = !td.done
+                          td.completedAt = td.done ? Date.now() : null
+                        }
+                      })
+                    }}
+                    style={{ fontSize: 15, lineHeight: 1.2, cursor: 'pointer', color: '#5A6473', flex: 'none' }}
+                  >
+                    {t.check}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, font: "600 12px/1.35 'Libre Franklin'", ...t.textStyle }}>{t.text}</span>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setData((d) => {
+                        const i = (d.todos || []).findIndex((x) => x.id === t.id)
+                        if (i >= 0) d.todos.splice(i, 1)
+                      })
+                    }}
+                    style={{ cursor: 'pointer', color: '#C5CCD6', fontSize: 14, flex: 'none' }}
+                  >
+                    ×
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 7, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      font: "600 7.5px 'IBM Plex Mono',monospace",
+                      color: t.srcC,
+                      background: t.srcBg,
+                      padding: '2px 7px',
+                      borderRadius: 8,
+                    }}
+                  >
+                    {t.srcL}
+                  </span>
+                  <select
+                    value={t.priority}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) =>
+                      setData((d) => {
+                        const td = (d.todos || []).find((x) => x.id === t.id)
+                        if (td) td.priority = e.target.value as Priority
+                      })
+                    }
+                    style={{
+                      border: 'none',
+                      background: t.prBg,
+                      color: t.prC,
+                      borderRadius: 8,
+                      font: "600 8.5px 'IBM Plex Mono',monospace",
+                      padding: '3px 7px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {prOpts.map((p) => (
+                      <option key={p.v} value={p.v}>
+                        {p.l}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Hot threads · inbox priority */}
+        <div style={panelBase}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 11 }}>
+            <span style={{ font: "700 14px 'Libre Franklin'", color: '#1B2330' }}>Hot threads · inbox priority</span>
+            <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: '#9AA3B2' }}>Outlook</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {inboxView.map((m) => (
+              <div
+                key={m.id}
+                style={{ border: '1px solid #E7E9EE', borderLeft: '4px solid ' + m.prC, borderRadius: 3, padding: '8px 10px' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: m.dot, flex: 'none' }} />
+                  <span style={{ font: "600 12px 'Libre Franklin'", color: '#1B2330', flex: 1, lineHeight: 1.2 }}>{m.subject}</span>
+                  <a
+                    href={m.openUrl}
+                    target="_blank"
+                    rel="noopener"
+                    title={m.openTitle}
+                    style={{ textDecoration: 'none', font: "600 9px 'IBM Plex Mono',monospace", flex: 'none', ...m.openStyle }}
+                  >
+                    ↗ Open
+                  </a>
+                  <span
+                    onClick={() =>
+                      setData((d) => {
+                        const i = (d.inbox || []).findIndex((x) => x.id === m.id)
+                        if (i >= 0) d.inbox.splice(i, 1)
+                      })
+                    }
+                    style={{ cursor: 'pointer', color: '#C5CCD6', fontSize: 14, flex: 'none' }}
+                  >
+                    ×
+                  </span>
+                </div>
+                <div style={{ font: "500 10px 'Libre Franklin'", color: '#7A8494', marginTop: 3 }}>
+                  {m.from} · {m.age}
+                </div>
+                <div style={{ font: "400 10.5px/1.4 'Libre Franklin'", color: '#6A7382', marginTop: 4 }}>{m.snippet}</div>
+                <div style={{ marginTop: 6 }}>
+                  <select
+                    value={m.priority}
+                    onChange={(e) =>
+                      setData((d) => {
+                        const msg = (d.inbox || []).find((x) => x.id === m.id)
+                        if (msg) msg.priority = e.target.value as Priority
+                      })
+                    }
+                    style={{
+                      border: 'none',
+                      background: m.prBg,
+                      color: m.prC,
+                      borderRadius: 8,
+                      font: "600 8.5px 'IBM Plex Mono',monospace",
+                      padding: '3px 7px',
+                    }}
+                  >
+                    {prOpts.map((p) => (
+                      <option key={p.v} value={p.v}>
+                        {p.l}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
