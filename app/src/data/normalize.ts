@@ -1,5 +1,6 @@
 import { getDefaults, getObjectiveDefaults, planeDefaults, insightsPromptDefault } from './defaults'
 import type { PmoData } from './types'
+import { mergeAdminSettings } from '../lib/admin'
 
 const HOUR = 3600 * 1000
 const DAY = 86400000
@@ -70,6 +71,12 @@ export function normalize(d: any): PmoData {
     if (s.completedAt === undefined) s.completedAt = s.status === 'done' ? Date.now() - 2 * DAY : null
     if (s.workType === undefined) s.workType = 'Epic'
   })
+  // Next-iteration fields: plan links, admin settings, sync bookkeeping.
+  if (!Array.isArray(d.planLinks)) d.planLinks = []
+  d.adminSettings = mergeAdminSettings(d.adminSettings)
+  if (!d.syncState) d.syncState = { pendingChanges: 0, rev: 0 }
+  if (typeof d.syncState.rev !== 'number') d.syncState.rev = 0
+  if (typeof d.syncState.pendingChanges !== 'number') d.syncState.pendingChanges = 0
   return d as PmoData
 }
 

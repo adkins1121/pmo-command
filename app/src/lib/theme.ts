@@ -14,4 +14,5 @@ export const VIEWS: { id: import('../data/types').ViewId; label: string }[] = [
   { id: 'env', label: 'Environment' },
   { id: 'insights', label: 'Insights' },
   { id: 'integrations', label: 'Integrations' },
+  { id: 'admin', label: 'Admin' },
 ]

@@ -15,6 +15,7 @@ import { Timeline } from './views/Timeline'
 import { Insights } from './views/Insights'
 import { Dependencies } from './views/Dependencies'
 import { EnvironmentView } from './views/Environment'
+import { Admin } from './views/Admin'
 import { Placeholder } from './views/Placeholder'
 
 export function App() {
@@ -54,6 +55,9 @@ export function App() {
       break
     case 'integrations':
       view = <Integrations />
+      break
+    case 'admin':
+      view = <Admin />
       break
     default:
       view = <Placeholder />

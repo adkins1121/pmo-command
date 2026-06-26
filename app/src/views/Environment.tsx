@@ -1,10 +1,28 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/store'
 import { useUI } from '../store/ui'
 import { mix, nid } from '../data/helpers'
 import type { PmoData, Service } from '../data/types'
+import { computeResize, handleDirs } from '../lib/resize'
+import type { ResizeDir } from '../lib/resize'
+import { listServices } from '../lib/canvasItems'
+import { coverageByService, coverageChip, coverageSummary } from '../lib/coverage'
+import { analyzeCoverage } from '../lib/matcher'
+import { defaultAdminSettings } from '../lib/admin'
 
 const ECW = 210, ECH = 78, EGAP = 14, EPAD = 14, EHEAD = 40, EFW = 940, GRID = 24
+
+// Edge/corner handle placement (node-local), used to render the 8 resize grips.
+const HANDLE_META: Record<ResizeDir, { cursor: string; style: React.CSSProperties }> = {
+  e: { cursor: 'ew-resize', style: { right: -4, top: '50%', transform: 'translateY(-50%)', width: 9, height: 20 } },
+  w: { cursor: 'ew-resize', style: { left: -4, top: '50%', transform: 'translateY(-50%)', width: 9, height: 20 } },
+  s: { cursor: 'ns-resize', style: { bottom: -4, left: '50%', transform: 'translateX(-50%)', width: 20, height: 9 } },
+  n: { cursor: 'ns-resize', style: { top: -4, left: '50%', transform: 'translateX(-50%)', width: 20, height: 9 } },
+  se: { cursor: 'nwse-resize', style: { right: -4, bottom: -4, width: 13, height: 13 } },
+  sw: { cursor: 'nesw-resize', style: { left: -4, bottom: -4, width: 13, height: 13 } },
+  ne: { cursor: 'nesw-resize', style: { right: -4, top: -4, width: 13, height: 13 } },
+  nw: { cursor: 'nwse-resize', style: { left: -4, top: -4, width: 13, height: 13 } },
+}
 const PAL = ['#4A6491', '#A8553F', '#3E7C6A', '#5B5391', '#B07D3C', '#2E7D52', '#5A6473', '#1E8A8A']
 const zoneAccents = ['#4A6491', '#A8553F', '#3E7C6A', '#5B5391', '#B07D3C']
 
@@ -34,9 +52,13 @@ export function EnvironmentView() {
   const { data, setData } = useStore()
   const ui = useUI()
   const env = data.environment
+  const admin = data.adminSettings || defaultAdminSettings()
+  const gridSize = admin.canvas.gridSize || GRID
+  const minW = admin.canvas.minWidth
+  const minH = admin.canvas.minHeight
 
   const [zoom, setZoom] = useState(1)
-  const [snap, setSnap] = useState(true)
+  const [snap, setSnap] = useState(admin.canvas.snapDefault)
   const [showGrid, setShowGrid] = useState(true)
   const [toolsMin, setToolsMin] = useState(false)
   const [palette, setPalette] = useState('#B07D3C')
@@ -44,6 +66,31 @@ export function EnvironmentView() {
   const [live, setLive] = useState<{ id: string; x: number; y: number } | null>(null)
   const [sizeLive, setSizeLive] = useState<{ id: string; w: number; h: number } | null>(null)
   const [hoverCid, setHoverCid] = useState<string | null>(null)
+  const [onlyUncovered, setOnlyUncovered] = useState(false)
+
+  // Coverage roll-up for badges, filtering and toolbar counters.
+  const covMap = useMemo(() => coverageByService(data, admin), [data, admin])
+  const covSummary = useMemo(() => coverageSummary(covMap), [covMap])
+
+  const runAnalysis = () => {
+    const nowIso = new Date().toISOString()
+    setData((d) => {
+      const res = analyzeCoverage(d, d.adminSettings || defaultAdminSettings(), nowIso)
+      d.planLinks = res.links
+      d.planAnalyzedAt = Date.now()
+    })
+  }
+
+  // Optional auto-run: re-score coverage whenever the environment data (not the
+  // links) changes. Keyed on a signature of the services so writing planLinks
+  // back doesn't retrigger the effect.
+  const svcSig = useMemo(() => listServices(data).map((s) => s.id + ':' + s.name + ':' + s.note + ':' + s.zoneId).join('|'), [data])
+  useEffect(() => {
+    if (admin.general.autoAnalyze) runAnalysis()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [svcSig, admin.general.autoAnalyze])
+
+  const eLockSize = env.lockSize || {}
 
   const ePos = env.canvasPos || {}, eSize = env.canvasSize || {}, eLock = env.fwLocked || {}
   const stMap: Record<string, any> = {}
@@ -139,14 +186,22 @@ export function EnvironmentView() {
     else if (n.kind === 'panel') box = { background: '#fff', border: '1px solid #E7E9EE', borderRadius: 6, padding: '12px 13px', boxShadow: '0 1px 3px rgba(20,30,50,.08)', cursor: 'grab' }
     else if (n.kind === 'note') { const strp = n.noteStyle === 'striped'; box = { height: n.h, padding: 0, borderRadius: 4, boxShadow: '0 3px 10px rgba(20,30,50,.16)', cursor: 'grab', border: '1.5px solid ' + mix(n.noteColor, 0.42), background: strp ? `repeating-linear-gradient(45deg,${mix(n.noteColor, 0.7)},${mix(n.noteColor, 0.7)} 9px,${mix(n.noteColor, 0.88)} 9px,${mix(n.noteColor, 0.88)} 18px)` : mix(n.noteColor, 0.8) } }
     else box = { background: '#fff', border: '1px solid #E7E9EE', borderLeft: '3px solid ' + (n.accent || '#888'), borderRadius: 4, padding: '8px 10px', boxShadow: '0 2px 6px rgba(20,30,50,.1)', cursor: 'grab' }
-    return { ...n, box, resizeH: n.resizeH || n.kind === 'note', resizable: n.kind !== 'firewall', rzCursor: n.resizeH || n.kind === 'note' ? 'nwse-resize' : 'ew-resize', locked }
+    // Resize axes: containers & notes resize both ways; everything else (cards,
+    // firewalls, panels, roadmap, ABES) resizes horizontally only — so a
+    // firewall widens without getting taller. Locked / size-locked → no handles.
+    const canH = n.kind === 'container' || n.kind === 'note'
+    const canW = true
+    const sizeLocked = locked || !!eLockSize[n.id]
+    const dirs = sizeLocked ? [] : handleDirs(canW, canH)
+    const cov = n.kind === 'card' ? covMap[n.sid] : undefined
+    return { ...n, box, canW, canH, handleDirs: dirs, locked, cov }
   })
 
   // refs for drag bookkeeping
-  const refs = useRef({ snap, zoom, pos: {} as Record<string, { x: number; y: number }>, sizes: {} as Record<string, { w: number; h: number; rh: boolean }>, cardParent: {} as Record<string, string>, containers: contRects, locked: eLock })
+  const refs = useRef({ snap, zoom, pos: {} as Record<string, { x: number; y: number }>, sizes: {} as Record<string, { w: number; h: number; canW: boolean; canH: boolean }>, cardParent: {} as Record<string, string>, containers: contRects, locked: eLock })
   refs.current.snap = snap; refs.current.zoom = zoom; refs.current.containers = contRects; refs.current.locked = eLock
   refs.current.pos = {}; refs.current.sizes = {}; refs.current.cardParent = {}
-  envNodes.forEach((n) => { refs.current.pos[n.id] = { x: n.x, y: n.y }; refs.current.sizes[n.id] = { w: n.w, h: n.h || 0, rh: !!n.resizeH }; if (n.kind === 'card') refs.current.cardParent[n.id] = n.parentZid })
+  envNodes.forEach((n) => { refs.current.pos[n.id] = { x: n.x, y: n.y }; refs.current.sizes[n.id] = { w: n.w, h: n.h || (n.kind === 'container' ? 120 : n.kind === 'note' ? 150 : 46), canW: !!n.canW, canH: !!n.canH }; if (n.kind === 'card') refs.current.cardParent[n.id] = n.parentZid })
 
   let eMX = 980, eMY = 560
   envNodes.forEach((n) => { const h = n.h || (n.kind === 'panel' ? 180 : n.kind === 'roadmap' ? 236 : n.kind === 'abes' ? 128 : n.kind === 'card' ? ECH : 46); eMX = Math.max(eMX, n.x + n.w); eMY = Math.max(eMY, n.y + h) })
@@ -189,26 +244,40 @@ export function EnvironmentView() {
       if (dg.isCard && toZid && toZid !== fromZid && sid) reparent(d, sid, toZid)
     })
   }
-  // resize
+  // resize — directional, 2D, zoom + snap aware (math in lib/resize.ts)
   const rzRef = useRef<any>(null), szLiveRef = useRef(sizeLive)
-  const onResizeDown = (e: React.PointerEvent, id: string) => {
+  const onResizeDown = (e: React.PointerEvent, id: string, dir: ResizeDir) => {
     e.stopPropagation()
-    const s = refs.current.sizes[id] || { w: 200, h: 0, rh: false }
-    rzRef.current = { id, ox: e.clientX, oy: e.clientY, ow: s.w, oh: s.h, rh: s.rh, scale: refs.current.zoom }
+    if (refs.current.locked[id]) return
+    const s = refs.current.sizes[id] || { w: 200, h: 46, canW: true, canH: false }
+    const p = refs.current.pos[id] || { x: 0, y: 0 }
+    rzRef.current = { id, dir, ox: e.clientX, oy: e.clientY, start: { x: p.x, y: p.y, w: s.w, h: s.h }, canW: s.canW, canH: s.canH, scale: refs.current.zoom }
     window.addEventListener('pointermove', onResizeMove); window.addEventListener('pointerup', onResizeUp); e.preventDefault()
   }
   const onResizeMove = (e: PointerEvent) => {
     const rz = rzRef.current; if (!rz) return
-    let w = Math.max(140, rz.ow + (e.clientX - rz.ox) / rz.scale)
-    let h = rz.rh ? Math.max(72, rz.oh + (e.clientY - rz.oy) / rz.scale) : rz.oh
-    if (refs.current.snap) { w = Math.round(w / GRID) * GRID; if (rz.rh) h = Math.round(h / GRID) * GRID }
-    const lv = { id: rz.id, w, h }; szLiveRef.current = lv; setSizeLive(lv)
+    const r = computeResize(rz.start, rz.dir, e.clientX - rz.ox, e.clientY - rz.oy, {
+      zoom: rz.scale, snap: refs.current.snap, grid: gridSize, minW, minH, canW: rz.canW, canH: rz.canH,
+    })
+    const lv = { id: rz.id, w: r.w, h: r.h }; szLiveRef.current = lv; setSizeLive(lv)
+    // West / north handles move the origin too — reflect it live.
+    if (rz.dir.includes('w') || rz.dir.includes('n')) { const p = { id: rz.id, x: r.x, y: r.y }; liveRef.current = p; setLive(p) }
   }
   const onResizeUp = () => {
     const rz = rzRef.current; if (!rz) return
     window.removeEventListener('pointermove', onResizeMove); window.removeEventListener('pointerup', onResizeUp); rzRef.current = null
-    const lv = szLiveRef.current; setSizeLive(null); szLiveRef.current = null
-    if (lv) setData((d) => { if (!d.environment.canvasSize) d.environment.canvasSize = {}; d.environment.canvasSize[lv.id] = rz.rh ? { w: Math.round(lv.w), h: Math.round(lv.h) } : { w: Math.round(lv.w) } })
+    const lv = szLiveRef.current; szLiveRef.current = null
+    const movedOrigin = rz.dir.includes('w') || rz.dir.includes('n')
+    const liveP = liveRef.current
+    setSizeLive(null); if (movedOrigin) { setLive(null); liveRef.current = null }
+    if (lv) setData((d) => {
+      if (!d.environment.canvasSize) d.environment.canvasSize = {}
+      d.environment.canvasSize[lv.id] = rz.canH ? { w: Math.round(lv.w), h: Math.round(lv.h) } : { w: Math.round(lv.w) }
+      if (movedOrigin && liveP && liveP.id === lv.id) {
+        if (!d.environment.canvasPos) d.environment.canvasPos = {}
+        d.environment.canvasPos[lv.id] = { x: Math.round(liveP.x), y: Math.round(liveP.y) }
+      }
+    })
   }
 
   const toggleLock = (e: React.MouseEvent, id: string) => {
@@ -239,8 +308,10 @@ export function EnvironmentView() {
         <div style={{ background: '#fff', border: '1px solid #E4E8EE', borderRadius: 5, boxShadow: '0 1px 2px rgba(20,30,50,.05)', overflow: 'auto', height: 640 }}>
           <div style={{ position: 'relative', width: worldW, height: worldH, minWidth: '100%', minHeight: '100%' }}>
             <div style={{ position: 'absolute', left: 0, top: 0, width: canvasW, height: canvasH, transformOrigin: '0 0', transform: `scale(${zoom})`, backgroundColor: '#FCFDFE', backgroundImage: gridImg, backgroundSize: '24px 24px' }}>
-              {envNodes.map((n) => (
-                <div key={n.id} onPointerDown={(e) => onDown(e, n.id)} onDoubleClick={() => openCard(n.id)} style={{ position: 'absolute', left: 0, top: 0, width: n.w, transform: `translate(${n.x}px,${n.y}px)`, ...n.box, touchAction: 'none', userSelect: 'none' }}>
+              {envNodes.map((n) => {
+                const dimmed = onlyUncovered && n.kind === 'card' && n.cov && n.cov.status === 'covered'
+                return (
+                <div key={n.id} onPointerDown={(e) => onDown(e, n.id)} onDoubleClick={() => openCard(n.id)} style={{ position: 'absolute', left: 0, top: 0, width: n.w, transform: `translate(${n.x}px,${n.y}px)`, ...n.box, opacity: dimmed ? 0.16 : 1, touchAction: 'none', userSelect: 'none' }}>
                   {n.kind === 'container' && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, pointerEvents: 'none' }}>
                       <span style={{ font: "700 13px 'Libre Franklin'", color: '#1B2330' }}>{n.title}</span>
@@ -267,6 +338,15 @@ export function EnvironmentView() {
                         <span style={{ font: "600 7.5px 'IBM Plex Mono',monospace", padding: '2px 5px', borderRadius: 5, background: n.tagBg, color: n.tagColor, flex: 'none' }}>{n.tagLabel}</span>
                       </div>
                       {n.note && <div style={{ font: "400 9.5px/1.35 'Libre Franklin'", color: '#6A7382', marginTop: 4, pointerEvents: 'none' }}>{n.note}</div>}
+                      {n.cov && (() => {
+                        const c = coverageChip(n.cov.status)
+                        return (
+                          <div title={n.cov.reason} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6, padding: '2px 7px', borderRadius: 9, background: c.bg, color: c.color, font: "700 8px 'IBM Plex Mono',monospace", letterSpacing: '.03em' }}>
+                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: c.color }} />
+                            {c.label.toUpperCase()}{n.cov.linkCount > 0 ? ' · ' + n.cov.linkCount : ''}
+                          </div>
+                        )
+                      })()}
                     </>
                   )}
                   {n.kind === 'abes' && (
@@ -311,11 +391,20 @@ export function EnvironmentView() {
                       {n.text && <div style={{ font: "400 11px/1.5 'Libre Franklin'", color: '#41495A', marginTop: 8, pointerEvents: 'none' }}>{n.text}</div>}
                     </>
                   )}
-                  {n.resizable && (
-                    <div onPointerDown={(e) => onResizeDown(e, n.id)} style={{ position: 'absolute', right: -2, bottom: -2, width: 16, height: 16, cursor: n.rzCursor, borderRadius: '0 0 5px 0', background: 'linear-gradient(135deg,transparent 42%,#AAB4C2 42%,#AAB4C2 58%,transparent 58%,transparent 70%,#AAB4C2 70%,#AAB4C2 86%,transparent 86%)' }} />
-                  )}
+                  {(n.handleDirs as ResizeDir[]).map((dir) => {
+                    const hm = HANDLE_META[dir]
+                    const corner = dir.length === 2
+                    return (
+                      <div
+                        key={dir}
+                        onPointerDown={(e) => onResizeDown(e, n.id, dir)}
+                        title={`Resize (${dir})`}
+                        style={{ position: 'absolute', ...hm.style, cursor: hm.cursor, background: corner ? '#fff' : 'rgba(170,180,194,.55)', border: corner ? '1.5px solid #8A93A2' : 'none', borderRadius: corner ? 3 : 4, zIndex: 3, touchAction: 'none' }}
+                      />
+                    )
+                  })}
                 </div>
-              ))}
+              )})}
             </div>
           </div>
         </div>
@@ -340,6 +429,23 @@ export function EnvironmentView() {
               <button onClick={() => setSnap((v) => !v)} style={toolBtn(snap)}><span>Snap to grid</span><span style={{ font: "700 9px 'IBM Plex Mono',monospace" }}>{snap ? 'ON' : 'OFF'}</span></button>
               <button onClick={() => setShowGrid((v) => !v)} style={toolBtn(showGrid)}><span>Show grid</span><span style={{ font: "700 9px 'IBM Plex Mono',monospace" }}>{showGrid ? 'ON' : 'OFF'}</span></button>
               <button onClick={autoArrange} className="mini-btn" style={{ justifyContent: 'center' }}>⤢ Auto-arrange</button>
+              <div style={{ borderTop: '1px solid #EDF0F4', marginTop: 1, paddingTop: 9, display: 'flex', flexDirection: 'column', gap: 7 }}>
+                <span style={{ font: "700 8.5px 'IBM Plex Mono',monospace", color: '#9AA3B2', letterSpacing: '.09em' }}>PLAN COVERAGE</span>
+                <button onClick={runAnalysis} className="mini-btn" style={{ justifyContent: 'center', background: 'linear-gradient(135deg,#2D6FE0,#1B9C8E)', color: '#fff', border: 'none' }}>✦ Analyze plan coverage</button>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                  {([['covered', covSummary.covered], ['partial', covSummary.partial], ['review', covSummary.review], ['missing', covSummary.missing]] as const).map(([st, n]) => {
+                    const c = coverageChip(st)
+                    return (
+                      <div key={st} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, background: c.bg, color: c.color, borderRadius: 6, padding: '4px 7px', font: "700 9px 'Libre Franklin'" }}>
+                        <span style={{ textTransform: 'capitalize' }}>{st}</span>
+                        <span style={{ font: "700 10px 'IBM Plex Mono',monospace" }}>{n}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+                <button onClick={() => setOnlyUncovered((v) => !v)} style={toolBtn(onlyUncovered)}><span>Only show uncovered</span><span style={{ font: "700 9px 'IBM Plex Mono',monospace" }}>{onlyUncovered ? 'ON' : 'OFF'}</span></button>
+                {data.planAnalyzedAt && <span style={{ font: "500 8px 'IBM Plex Mono',monospace", color: '#9AA3B2' }}>Analyzed {new Date(data.planAnalyzedAt).toLocaleString()}</span>}
+              </div>
               <div style={{ borderTop: '1px solid #EDF0F4', marginTop: 1, paddingTop: 9, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ font: "700 8.5px 'IBM Plex Mono',monospace", color: '#9AA3B2', letterSpacing: '.09em' }}>ADD ELEMENT</span>
                 <button onClick={addCard} className="mini-btn" style={{ justifyContent: 'flex-start' }}>+ Service card</button>
