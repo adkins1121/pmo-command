@@ -3,6 +3,7 @@ import { NavFlyout } from './components/NavFlyout'
 import { ItemModal } from './components/ItemModal'
 import { AiAssistant } from './components/AiAssistant'
 import { EditDrawer } from './components/EditDrawer'
+import { SyncIndicator } from './components/SyncIndicator'
 import { useUI } from './store/ui'
 import { Dashboard } from './views/Dashboard'
 import { Focus } from './views/Focus'
@@ -83,6 +84,7 @@ export function App() {
         <EditDrawer />
       </div>
       <AiAssistant />
+      <SyncIndicator />
     </div>
   )
 }

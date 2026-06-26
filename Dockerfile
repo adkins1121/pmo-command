@@ -13,5 +13,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/dist ./dist
 COPY app/server.mjs ./server.mjs
+COPY app/server ./server
 EXPOSE 8080
 CMD ["node", "server.mjs"]
