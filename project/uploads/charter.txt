@@ -1,0 +1,624 @@
+PROGRAM CHARTER
+ERPNext Implementation for ABES Inc
+Replacing QuickBooks Online and an adjacent SaaS stack with an AMDG-owned, AI-extensible ERP platform
+
+Atlas Medical Data Group (AMDG)
+Transformation lead: AltusKC   -   Build: Nexera Digital   -   Advisory &amp; change: Change Shepherd Group   -   Client entity: ABES Inc
+Document
+Program Charter
+Status
+Draft for program-team review
+Purpose
+Scope definition - what this program is and how the work streams fit together
+Authoritative scope basis
+ADR-005 - Phase 1 Scope Reframe
+Prepared for
+Charles Stoops (AMDG)
+
+Contents
+TOC \o "1-2" \h \z \uRight-click and choose Update Field to build the table of contents.
+
+1. Executive Summary
+This program replaces ABES Inc.'s QuickBooks Online accounting system - and several adjacent point-solution SaaS tools - with a self-hosted, open-source ERPNext platform that AMDG (Atlas Medical Data Group) owns and operates. ABES is an Applied Behavior Analysis (ABA) therapy provider operating clinics in Geneva and Sycamore, Illinois, so the eventual system must handle both ordinary business finances and, in later phases, clinical patient data under HIPAA. The program is deliberately sequenced to deliver the financial foundation first, with no protected health information (PHI) anywhere in the early phases, and to introduce clinical data only once that foundation is proven and reconciled.
+This is a multi-vendor program run as one coordinated effort. A transformation lead (Mike Adkins, AltusKC) sits at the center as AMDG's program owner - holding the integrated roadmap, and keeping the vendors aligned. Nexera Digital does the hands-on engineering build inside AMDG's project. Change Shepherd Group provides the advisory and change layer: systems discovery, the data and chart-of-accounts design that the migration is built against, organizational change leadership at the clinics, and reporting strategy. AMDG owns the platform and the decisions. The purpose of this charter is to define that scope clearly - what the program is, what each work stream delivers, and how the pieces fit together.
+Strategically, AMDG's CEO frames Phase 1 as the "box killer": a proof that an AMDG-owned, AI-extensible ERPNext can replace a fragmented SaaS stack end-to-end. Success is measured not by "the data moved" but by "QuickBooks and its satellites are switched off and the automation runs in ERPNext."
+2. Background &amp; Context
+ABES currently runs its finances on QuickBooks Online (QBO) Plus, surrounded by a patchwork of disconnected systems - Rethink (clinical/practice management), EasyClaim (billing and claims), Timeco via the OneDigital PEO (time and payroll), and others - with no consolidated view such as gross profit by clinic location. This stack is fragmented and not extensible with the AI-driven automation AMDG wants to layer on. AMDG already runs its own books on a comparable self-hosted ERPNext stack, so the target patterns are proven rather than experimental.
+This project exists because, rather than rebuild from scratch, AMDG combined the useful capabilities from seven prior ERPNext-related projects into one home, governed by a single architecture and quality standard. The table below shows what was harvested from where.
+Source project
+Primary domain
+Feeds work stream
+rethink-to-erpnext-migration
+Clinical data migration (RethinkBH)
+Data Migration
+qbo-to-erpnext-migration
+Financial data migration (QuickBooks)
+Data Migration
+rethinkbh-to-erpnext-migration
+RethinkBH reference data model
+Data Migration
+aba-schedule-optimizer
+Therapy scheduling
+Scheduling (deferred)
+Bryan-Personal_ERPNext
+Financial automation
+Financial Automation
+frappe-goes-paperless
+Paperless document management
+Document Management
+ai-talent-sourcing-app / primitivemail
+AI resume parsing + email intake
+Talent Sourcing
+2.1 The reset (why Phase 1 looks the way it does)
+Phase 1 was reframed at a 2026-05-12 project sync, recorded in decision record ADR-005. The original engagement assumed a migration-only Phase 1 executed against a separate codebase; that was reset so the build happens directly inside AMDG's project, under AMDG's architecture and quality bar. At the same time, AMDG's own live ERPNext bookkeeping had already de-risked the financial-automation work, and leadership made clear that a migration-only Phase 1 would produce no real change versus QuickBooks. The decision: Phase 1 expanded from "migrate QuickBooks data" to a financial-automation bundle (data migration + financial automation + document management), under strict simplifying constraints - one-way export-based migration, no patient data, and chart-of-accounts reconciliation as the non-negotiable backbone.
+2.2 A multi-vendor program, coordinated by a transformation lead
+Phase 1 is delivered by several parties with deliberately separated roles, coordinated as one program. The transformation lead (Mike Adkins, AltusKC) is the single operator who sees across all the vendors and work streams - he owns the integrated roadmap and the operating cadence, so AMDG does not have to coordinate the vendors directly. Nexera Digital is the build partner. Change Shepherd Group is the advisory and change-management partner, whose discovery and design work defines the target the build is aimed at. The work streams in Section 11 are organized by capability and note who leads each one; the transformation lead is the governance layer over all of them (Section 6.1), not a work stream itself.
+Change Shepherd's discovery also widens the system landscape beyond QuickBooks and Rethink: ABES's stack additionally includes EasyClaim (billing/claims) and Timeco via the OneDigital PEO (payroll). CSG is further advising on a multi-entity architecture - clinic instances, a holding company, and a planned MSO instance - designed for consolidated reporting across current and future acquisitions. That forward-looking, multi-entity framing sits above this charter's current ABES-only scope and is the most likely source of future scope change; it warrants its own decision record before the chart-of-accounts design is finalized.
+3. Program Vision &amp; Objectives
+Vision:
+An AMDG-owned, AI-extensible ERPNext platform that fully replaces ABES's QuickBooks-centered SaaS stack and, over later phases, absorbs clinical operations (patient/provider data and scheduling) under HIPAA-grade controls.
+Strategic objectives:
+O1 - Prove the "box killer" thesis - open-source ERPNext plus AI can replace constrained SaaS end-to-end for healthcare-adjacent finance and operations.
+O2 - Eliminate QuickBooks Online and adjacent per-seat SaaS tools, consolidating onto one owned platform with consolidated cross-clinic reporting.
+O3 - Deliver automation value (receivables, invoice OCR, bank feeds, document sync) in the same phase as migration, not after it.
+O4 - Establish a repeatable, AI-safe way of working that lets human and AI contributors ship in two-week sprints without cross-cutting risk.
+O5 - Lay a clean foundation so clinical migration and scheduling can be added later under HIPAA controls without rebuilding.
+4. Program Scope
+Scope is governed by decision record ADR-005, which takes precedence wherever older roadmap documents disagree. The program is organized into capability-based work streams (Section 11), delivered across four phases (Section 5), and coordinated by a transformation lead (Section 6.1).
+4.1 In scope
+Systems discovery and data strategy across ABES's source systems, and the data/chart-of-accounts design the migration is built against (Change Shepherd-led).
+Migration of ABES financial master data and balances from QuickBooks Online into ERPNext (export-based, one-way).
+Financial automation: bank-feed and receipt intake, AI classification, receipt-to-transaction matching, and automated accounting entries.
+Two-way document management between ERPNext and the Paperless document system.
+Organizational change management at the clinics, and reporting/BI strategy (Change Shepherd-led).
+Self-hosted infrastructure, secure password handling, and an automatic quality checkpoint.
+Program governance and transformation management across all of the above (AltusKC).
+Later phases: clinical data migration from RethinkBH, and automated scheduling with a plain-English interface.
+4.2 Out of scope (program-level and Phase 1)
+Live two-way QuickBooks sync. Phase 1 is export-based and one-way; live sync is deferred to a later phase if value justifies it.
+Any patient / clinical / appointment data in Phase 1 or 2 - by design, so no HIPAA requirements are triggered early.
+Scheduling until clinical data exists (Phase 4).
+Go-live of any kind without ABES financial-operations sign-off (Veronica + Paula).
+Hands-on ERPNext configuration by the advisory partner; Change Shepherd advises and designs, Nexera builds.
+5. Phasing &amp; Roadmap
+Each phase must be fully complete - all behavior scenarios passing and the 18-point quality checklist satisfied - before the next begins. The ordering deliberately front-loads all non-HIPAA work so that patient data enters only after the financial foundation is proven.
+Phases
+Name
+Focus
+Patient data?
+Headline deliverables
+1
+Financial Foundation
+Discovery + QBO migration + financial automation + documents
+No
+Chart of accounts, customers, vendors, opening balances migrated; receipt OCR + receivables automation; document sync
+2
+Operational Automation
+Automation at scale + talent intake
+No
+ Intake Bank, AI receipt matching, document sync at scale, AI resume/email
+3
+Clinical Foundation
+RethinkBH migration
+Yes
+Patients, providers, appointments migrated; HIPAA controls activate
+4
+Advanced Scheduling &amp; UI
+Scheduling engine + UI
+Yes
+Automated scheduling, AI routing, calendar sync, reminders, scheduling screens
+Dependency rule:
+Phases 2 and 3 both depend on Phase 1 (master data must exist first). Phase 4 depends on Phase 3 (scheduling needs patient/provider data). Phases 2 and 3 are independent of each other and may overlap once Phase 1 is complete. Phase 1 itself bundles several streams but holds the line on its simplifying constraints (export-only, no patient data, no scheduling).
+6. Governance &amp; Operating Model
+6.1 Program governance &amp; transformation management
+AMDG has engaged a transformation lead - Mike Adkins of AltusKC - as a fractional resource who sees across every vendor and work stream, so AMDG does not have to manage the engagement vendor-by-vendor. His remit is the transformation management office: owning the integrated roadmap that sequences work across teams and vendors by effort, risk, and dependency, holding vendors accountable for pace and value, driving HIPAA compliance enablement so later clinical phases are not blocked, and running the operating cadence and steering committee. He partners with Charles Stoops on the AMDG side. This is the governance layer over all of the work streams in Section 11; it is deliberately not itself a delivery work stream, because its output is coordination, sequencing, and decisions rather than a slice of the product.
+6.2 How the system is built
+The system is built feature by feature rather than in technical layers. Each business capability is a self-contained unit that includes everything it needs, along with its own tests. The practical payoff is that one capability can be built or changed without disturbing the others, a new contributor can focus on just the piece they own, and a mistake in one area is contained rather than rippling across the whole system. That containment also makes it safe to let AI assist: an AI error in one feature can't spread elsewhere. Shared building blocks are factored out only once several features genuinely need the same thing. (See ADR-001.)
+6.3 How the work is done - test-first and locked
+Every feature starts by writing down, in advance, exactly how it should behave and what would prove it works - and that proof is written as an automated test before the feature itself is built. Those tests are then locked: the team, including any AI assistant, may add new tests but may never quietly weaken or delete an existing one to make a problem appear to pass. An automated checkpoint enforces this. Work proceeds in small, disciplined increments, each one written, tested, cleaned up, and checked in on its own. (See ADR-002.)
+6.4 The 18-point quality checklist (Definition of Done)
+Every piece of work must pass all 18 quality checks before it can go live. They fall into four groups:
+Group
+What each check confirms (plain language)
+Why it matters
+Tested first (1-6)
+The behavior was written down and proven by an automated test before the feature was built, including the tricky edge cases.
+Nothing ships without proof it works
+Clean &amp; secure code (7-11)
+Code passes automated style, safety, and formatting checks; no passwords are hard-coded; no unfinished shortcuts are left behind.
+Consistent, secure, maintainable code
+Structure preserved (12-15)
+Each feature stays self-contained, with no shortcut shared layers, and any new design decision is written up.
+The feature-by-feature design holds up
+Docs in step (16-18)
+The written specs and project documentation are updated to match what was actually built.
+Docs never drift from the system
+6.5 Tools and AI
+The team uses specialized tools to search and safely change the large codebase, and runs AI on its own hardware where practical to control cost and keep data in-house - turning to outside AI services only for the most demanding tasks. (See ADR-003.)
+6.6 Cadence &amp; decision records
+Steering committee (transformation lead, Charles, Bryan, Veronica) sets priorities, decisions, and unblocks work.
+Weekly working session with AMDG leadership, plus a written summary from the transformation lead every Friday (hours, work done, decisions, what's next, anything at risk).
+Nexera build runs in two-week sprints, with a recurring Friday sprint-planning and scope-review meeting.
+All significant decisions are captured as decision records (ADRs). Scope changes require written agreement from AMDG and the affected vendor.
+7. Organization, Roles &amp; Stakeholders
+Person
+Org
+Role on the program
+Bryan Murphy
+AMDG
+CEO, strategic driver, system owner. Provides QuickBooks access, migration data, direction; final AMDG sign-off.
+Mike Adkins
+AltusKC
+Transformation / engagement lead. Runs the transformation management office: integrated roadmap, vendor orchestration, HIPAA enablement, steering committee. 
+Charles Stoops
+AMDG
+AMDG-side partner to the transformation lead; steering committee member; program steering and advisory.
+Hannah Schuele
+AMDG
+Owns infrastructure setup and access, and AMDG-side delivery coordination.
+Russell Smith
+Nexera
+Engineer / technical lead. Hosts sprint planning, leads the QuickBooks extraction, runs sprint demo.
+Brandon Johnson
+Nexera
+Engineer. Leads code cleanup into clean features; contributing engineer on extraction.
+Cissy Byrd
+Change Shepherd
+Founder &amp; principal. Leads discovery &amp; data strategy, architecture &amp; data governance, organizational change, and reporting strategy.
+Veronica
+ABES
+ABES CEO / financial operations - go-live sign-off; primary on-site stakeholder for change work; steering committee.
+Paula
+ABES
+Financial operations - go-live sign-off.
+Tracy
+Miller Cooper
+Outside accountant. Consulted on chart of accounts and reporting.
+No go-live - full or partial - lands until Veronica and Paula sign off. This is an external dependency the delivery team does not control, and go-live scheduling must accommodate ABES review windows.
+8. Infrastructure
+The platform is self-hosted on AMDG-owned infrastructure, reusing an operations pattern already proven on an earlier AMDG migration. The practice and live ERPNext systems are kept identical and loaded from the same QuickBooks export.
+Concern
+Choice
+Owner
+Servers
+Cloud servers running a practice copy and a live copy of ERPNext
+Hannah
+Network access
+Private, invitation-only network for administration; encrypted public access for users
+Hannah
+Passwords &amp; keys
+Stored in a secure vault and supplied to the system automatically at deploy time
+Hannah
+Backups
+Regular server snapshots plus an AMDG operator runbook
+Hannah
+Monitoring
+In place from the first sprint (specific tooling TBD)
+TBD
+AI
+Run in-house where practical; outside AI services only for the most demanding tasks
+TBD
+9. Risks, Assumptions &amp; Constraints
+9.1 Key risks
+Risk
+Impact
+Mitigation
+ABES sign-off (Veronica + Paula) is an external gate the team does not control
+Go-live schedule slips
+Plan go-live around ABES review windows; keep practice-system demos ready early
+Multiple vendors (build + advisory) create coordination and handoff risk
+Duplicated or misaligned work
+Transformation lead owns the integrated roadmap and steering committee; design-vs-build ownership defined in Section 11
+Advisor/builder handoff gaps - chart of accounts or data mapping designed twice or built against the wrong target
+Rework; failed reconciliation
+Single ownership per Section 11.5; CSG owns target design, Nexera owns implementation
+Multi-entity / MSO architecture decided late, after the chart of accounts is built
+Costly CoA redesign and re-migration
+Resolve the entity model (own decision record) before finalizing the chart of accounts
+HIPAA obligations underestimated for later phases
+Phase 3 delay / compliance gap
+Defer patient data to Phase 3 by design; transformation lead drives HIPAA enablement ahead of need
+9.2 Assumptions
+Financial-automation patterns are de-risked by AMDG's live ERPNext bookkeeping; this is not greenfield.
+QuickBooks data can be reliably exported as repeatable input without live sync.
+The practice and live ERPNext systems are reachable to the engineers over the private network.
+9.3 Hard constraints (ADR-005)
+QuickBooks to ERPNext is one-way and export-based in Phase 1.
+No patient data in Phase 1 or 2.
+Chart-of-accounts mapping is the backbone: nothing counts as done until the books reconcile to the penny.
+Practice and live systems both loaded from the same export.
+ABES sign-off required before any go-live.
+10. Success Criteria
+Phase 1 is complete when, and only when:
+The QuickBooks migration criteria pass (extraction, transformation, loading, and reconciliation).
+The financial-automation criteria pass (intake, classification, and accounting entries).
+The document-management criteria pass (inbound and outbound sync).
+The new system's totals match QuickBooks to the penny, and the detailed customer/vendor balances reconcile.
+All 18 quality checks pass for every change, with no patient data introduced on any branch.
+The automation demonstrably runs against the migrated data - migration alone does not count as done.
+ABES (Veronica + Paula) signs off before go-live.
+
+11. Scope Overview by Work Stream
+This section is the heart of the charter. The work streams are organized by capability, not by vendor - each notes who leads it. Two enabling streams come first, then the discovery and design streams that define the target, then the build streams that implement it, then the change and reporting streams that run alongside. In each WBS table, the top line of a work package is its short name; the italic line beneath explains in plain business terms what it delivers. Streams led by Change Shepherd are advisory (design and guidance, not hands-on configuration) and are marked accordingly. The deferred streams (11.11) are shown at a summary level because they will be re-scoped before work begins.
+
+11.1 Infrastructure &amp; DevOps Foundation (Driver: Mike, SME: Hannah)
+Everything else sits on this foundation. This stream rents and sets up the servers that run the new system - with a separate practice copy and a live copy so changes can be tested before anyone sees them - puts them behind a private, invitation-only network, secures every connection, keeps passwords in a locked vault, takes regular backups, and adds an automatic quality checkpoint that every change must pass. A useful side benefit: the same network protections are most of what the system will later need to satisfy HIPAA once patient data arrives, so this work pays off twice. Hannah owns this stream.
+WBS
+Work package
+Status / phase
+A.1
+Provision servers - practice + live copies
+- Rent and configure the computers that run ERPNext, with a separate test copy so changes can be tried safely before going live.
+Phase 1
+A.2
+Private, invitation-only network access
+- Put the system behind a closed network so only approved staff can reach it; nothing is open to the public internet.
+Phase 1
+A.3
+Encrypted connections (the security padlock)
+- Turn on HTTPS so every connection to the system is encrypted and trusted.
+Phase 1
+A.4
+Secure password &amp; key vault
+- Store all passwords and access keys in a protected vault instead of in the software, so credentials can't leak.
+Phase 1
+A.5
+Regular backups
+- Take routine snapshots so the system can be restored quickly if something goes wrong.
+Phase 1
+A.6
+System health monitoring
+- Add monitoring so the team can see whether the system is healthy and catch problems early.
+Phase 1 - tooling TBD
+A.7
+Automatic quality checkpoint
+- Block any new work from going live unless it passes all 18 quality and testing rules.
+Phase 1
+
+11.2 Engineering Governance &amp; Repo Discipline (Driver: Mike, SME: Nexera, Cissy)
+This stream turns the code inherited from seven older projects into a clean, well-organized foundation, and gets the team's tools and working habits in place. It has to happen first: until the code is organized into self-contained features and every engineer can run the automated quality checks, none of the build streams can meet the quality bar. Brandon leads the cleanup; Russell leads sprint planning.
+WBS
+Work package
+Status / phase
+B.1
+Take stock of inherited code
+- Inventory everything carried over from the seven older projects so the team knows what it's working with.
+Phase 1
+B.2
+Reorganize code feature-by-feature
+- Restructure the code so each business feature is self-contained and can be worked on without breaking others.
+Phase 1
+B.3
+Set up each engineer's workspace
+- Get every engineer's computer ready to run the project's automated tests and quality checks.
+Phase 1
+B.4
+Give engineers secure system access
+- Connect each engineer to the shared practice system over the private network.
+Phase 1
+B.5
+Adopt the disciplined way of working
+- Every change is tested first, and existing tests can't be quietly weakened - checked in one small step at a time.
+Ongoing
+B.6
+Standardize the team's tooling
+- Agree on the tools used to search and safely change the large codebase.
+Phase 1
+
+11.3 Discovery &amp; Data Strategy (Driver: Mike, SME: Cissy)
+This is the first half of the migration's design front-end. Before anything is built, Change Shepherd maps ABES's full system landscape, profiles what each system can export, and writes the source-to-target mapping that says where every piece of data should land in ERPNext. That mapping is the specification the Data Migration build (11.5) then implements - which is why this stream sits immediately upstream of it. It also identifies the metrics and reporting needs that shape the chart of accounts and the reporting work.
+WBS
+Work package
+Status / phase
+D.1
+Inventory the source systems
+- Map ABES's current systems (QuickBooks, Rethink, EasyClaim, Timeco/OneDigital) and how data flows between them.
+Phase 1 (advisory)
+D.2
+Profile exports &amp; data structure
+- Check what each system can export and how its data is organized, to support migration planning.
+Phase 1 (advisory)
+D.3
+Source-to-target data mapping
+- Define where each QuickBooks and operational data element should land in ERPNext - the spec the migration build implements.
+Phase 1 (advisory)
+D.4
+Metrics &amp; reporting requirements
+- Identify the KPIs and reporting hierarchies needed for cross-clinic P&amp;L and operational dashboards.
+Phase 1 (advisory)
+
+11.4 Architecture &amp; Data Governance (Driver: Mike, SME: Cissy)
+The second half of the design front-end. Change Shepherd recommends how the chart of accounts, cost centers, and reporting dimensions should be structured - and how the whole system should be shaped for consolidated reporting across multiple clinics and, eventually, a holding company and an MSO. This is the target the migration is aimed at: the chart-of-accounts design here is what the migration build maps QuickBooks into and reconciles against.
+WBS
+Work package
+Status / phase
+AR.1
+Multi-entity / MSO architecture
+- Advise how to structure ERPNext across clinic instances, a holding company, and a planned MSO, for consolidated reporting across current and future acquisitions.
+Phase 1 (advisory)
+AR.2
+Chart of accounts &amp; cost-center design
+- Recommend the account structure, cost centers, and reporting dimensions - the target the migration maps into.
+Phase 1 (advisory)
+AR.3
+Integration &amp; data-flow design
+- Advise how data should flow between the clinic, holding-company, and MSO instances.
+Phase 1 (advisory)
+AR.4
+Data governance standards
+- Naming conventions, schema standards, and scalability guidelines for future acquisitions.
+Phase 1 (advisory)
+
+11.5 Data Migration: QuickBooks (Driver: Miker, SME: Cissy (design), Nexera (build), Tracy)
+This is the financial backbone of Phase 1, and it is one pipeline with two owners. Change Shepherd designs the target - the source-to-target mapping (11.3) and the chart-of-accounts structure (11.4) - and Nexera builds against that design: pulling ABES's data out of QuickBooks, reshaping it, loading it in the right order, and proving the result matches QuickBooks to the penny before anyone relies on it. The design-to-build handoff is the critical seam, so it is drawn explicitly below. Two pieces of the build are already done.
+Design-to-build handoffs:
+Design input (Change Shepherd)
+Produced in
+Built by Nexera as
+Source-to-target data mapping
+Discovery &amp; Data Strategy (11.3)
+The transformation that loads each field (Step 2)
+Chart-of-accounts target + reporting dimensions
+Architecture &amp; Data Governance (11.4)
+The account mapping and reconciliation (Steps 2 &amp; 4)
+Confirmed source-system scope
+Discovery &amp; Data Strategy (11.3)
+Which systems each phase migrates
+Build work packages (Nexera):
+WBS
+Work package
+Status / phase
+1.1
+Step 1 - Get the data out of QuickBooks
+Phase 1 - Sprint 1
+1.1.1
+Securely connect to QuickBooks
+- Pull ABES's data directly out of QuickBooks through a secure connection.
+Sprint 1
+1.1.2
+Handle large accounts
+- Bring across accounts that hold thousands of records without missing any.
+Sprint 1
+1.1.3
+Spreadsheet backup option
+- Accept plain spreadsheet exports as a fallback if the direct connection isn't available.
+Sprint 1
+1.2
+Step 2 - Reshape the data for the new system
+Phase 1 - Sprint 1-2
+1.2.1
+Convert customer records
+- Translate QuickBooks customers into the new system's format, keeping a link back to the original.
+Stretch
+1.2.2
+Clean up messy data
+- Fix inconsistent or incomplete QuickBooks data during the move.
+Stretch
+1.2.3
+Map the chart of accounts
+- Match every QuickBooks account to the right account in the new system, per the CSG design (11.4).
+DONE (built)
+1.2.4
+Bring across transactions
+- Carry historical transactions into the new system's current format.
+DONE (built)
+1.3
+Step 3 - Load the data in
+Phase 1 - Sprint 2+
+1.3.1
+Load in the correct order
+- Load settings first, then master lists, then balances, then history, so nothing breaks.
+Sprint 2+
+1.3.2
+Set the starting balances
+- Create the opening balances so the new books begin exactly where QuickBooks left off.
+Sprint 2+
+1.4
+Step 4 - Prove it matches
+Phase 1 - Sprint 2+
+1.4.1
+Match the totals to the penny
+- Prove the new system's overall totals match QuickBooks before anyone relies on it.
+Gates the rest
+1.4.2
+Match the detailed balances
+- Confirm the detailed customer-owed and vendor-owed balances also match.
+Sprint 2+
+1.5
+ABES sign-off before go-live
+- ABES finance leaders (Veronica and Paula) review and approve before the switch goes live.
+Hard external gate
+
+11.6 Financial Automation &amp; Réconciliation (Driver: Mike, SME: Cissy, Nexera, Tracy)
+This is what makes the project a true replacement for QuickBooks rather than just a data move. It automatically pulls in bank transactions and receipts, uses AI to read each receipt, matches it to the right bank transaction with strict safeguards against mismatches, and creates the proper accounting entries on its own. It relies on the account design from the architecture stream, and its receipts flow straight into the document stream - which is why those were built together. It begins once the migration foundation is in place.
+WBS
+Work package
+Status / phase
+3.1
+Pull in bank transactions &amp; receipts
+- Automatically gather transactions from the bank and receipts from the receipt-capture tools.
+Phase 1/2
+3.2.1
+Read receipts with AI
+- Use AI to read each receipt or invoice and pull out the vendor, amount, date, and line items.
+Phase 1/2
+3.2.2
+Match receipts to transactions safely
+- Pair each receipt with the right bank transaction, with strict checks so it never matches the wrong one.
+Phase 1/2
+3.2.3
+Auto-categorize each expense
+- Automatically decide which accounting category each expense belongs to (uses the account design).
+Phase 1/2
+3.3
+Create the accounting entries automatically
+- Generate the proper bill, payment, and reconciliation entries without manual data entry.
+Phase 1/2
+3.4
+Review screen for exceptions
+- Give staff a simple screen to review and correct anything the AI wasn't sure about.
+Phase 1/2
+
+11.7 OCR &amp; Financial Document Integration (Driver: Mike, SME: Cissy, Nexera, Tracy)
+This stream gives every incoming invoice a proper home by keeping the new system and the document-filing system (Paperless) in step, both directions. Incoming documents automatically create matching records in ERPNext with their text and key dates; going the other way, ERPNext's customer and vendor lists stay synced as contacts in the filing system, without duplicates. It was paired with the automation stream because a received invoice is both an accounting item and a stored document.
+WBS
+Work package
+Status / phase
+4.1.1
+Auto-file incoming documents into ERPNext
+- When a document is filed, automatically create a matching record in ERPNext with its text, image, and labels.
+Phase 1/2
+4.1.2
+Read the invoice date automatically
+- Pull the invoice date off the scanned document so staff don't key it in.
+Phase 1/2
+4.2.1
+Keep contact lists in sync
+- Mirror ERPNext's customers and vendors into the document system as contacts.
+Phase 1/2
+4.2.2
+Avoid duplicate contacts
+- Detect when a contact already exists and link to it instead of creating a duplicate.
+Phase 1/2
+4.3
+Activity log for every sync
+- Keep a running log of each sync so staff can see what happened and spot errors.
+Phase 1/2
+4.4
+Lock down and keep files private
+- Restrict the connection to approved addresses and keep document files private.
+Phase 1/2
+
+11.8 Organizational Change Management (Driver: Mike, SME: Cissy)
+Technology only sticks if the people using it are brought along. This stream is the people side of the transition: on-site work at the Geneva and Sycamore clinics to understand how staff actually work, a phased change plan that treats ABES staff as co-builders rather than passive recipients, and ongoing alignment between ABES leadership, the outside accountant, and AMDG. It runs in parallel with the build and is independent of the migration pipeline.
+WBS
+Work package
+Status / phase
+OCM.1
+On-site discovery &amp; readiness
+- Assess staff readiness, workflow dependencies, and change impacts at the Geneva and Sycamore clinics.
+Phase 1 (advisory)
+OCM.2
+Phased change plan
+- A people-side plan that positions ABES staff as co-builders, sequenced alongside the technical rollout.
+Phase 1 (advisory)
+OCM.3
+Stakeholder alignment
+- Keep ABES leadership (Veronica), outside accounting (Tracy/Miller Cooper), and AMDG aligned through the transition.
+Phase 1 (advisory)
+
+11.9 Reporting &amp; BI Strategy (Driver: Mike, SME: Cissy)
+The whole point of consolidating onto one platform is to finally see the numbers - gross profit by clinic, cross-location P&amp;L, operational KPIs. This stream defines those reporting priorities, decides whether to use ERPNext's native reporting or a separate business-intelligence tool, and designs the report structures and data models so they serve both today's needs and future AI-driven reporting. It draws on the metrics identified during discovery (11.3).
+WBS
+Work package
+Status / phase
+BI.1
+Reporting priorities
+- Define the near-term reports: cross-clinic P&amp;L, location-level views, and operational KPIs aligned to ABA norms.
+Phase 1 (advisory)
+BI.2
+Reporting tooling decision
+- Decide native ERPNext reporting vs. a separate BI tool (e.g., Power BI) as the reporting layer.
+Phase 1 (advisory)
+BI.3
+Report &amp; data-model design
+- Design report structures and data models for current needs and future AI-driven reporting.
+Phase 1 (advisory)
+
+11.10 AI Talent Sourcing &amp; Email Intake (Driver: Mike, SME: Charlie)
+This is the program's one non-financial piece of automation: turning incoming job applications into structured candidate records. A resume - uploaded, pasted in, or emailed - is read by AI and turned into a complete candidate profile with skills, experience, and an AI fit-score. The core is already built and working; what remains is the email path. Because it's lightweight and carries no patient data, whether to include it in Phase 1 was left as an open decision rather than ruled out.
+WBS
+Work package
+Status / phase
+6.1
+Candidate record set up in the system
+- Create the candidate profile in ERPNext with all the fields needed to capture an applicant.
+DONE
+6.2
+AI reads resumes automatically
+- Use AI to read a resume and fill in the candidate's skills, experience, and education.
+DONE
+6.3
+Service that processes incoming applications
+- Build the behind-the-scenes service that receives an application and runs it through the AI.
+Planned
+6.4
+Dedicated application inbox
+- Set up an email address so resumes sent in flow straight into the system automatically.
+Planned
+6.5
+Simpler email option
+- An alternative, simpler email path using a standard mailbox.
+Planned
+
+11.11 Deferred work streams (summary)
+These three streams are real and planned but intentionally out of the near-term path. They are shown at a summary level because their detail will be re-scoped before work begins.
+
+An automated scheduling system for ABA therapy. It builds therapy schedules that respect every real-world rule - provider availability, required credentials, insurance authorizations, and travel time - and lets staff make requests in plain English, with calendar sync and text reminders on top. It can't start until patient and provider data exists (Phase 3), so it is the last major build. There is a user-driven app framework that we need to get stood up.
+WBS
+Work package
+Status / phase
+2.1
+Automatic schedule builder
+- The engine that builds therapy schedules while respecting every rule, like availability, credentials, and authorizations.
+Phase 4
+2.2
+Plain-English requests + calendar sync
+- Let staff ask for scheduling in everyday language, and keep calendars in step.
+Phase 4
+2.3
+Reminders + automatic re-juggling
+- Send text reminders and automatically rework the schedule when something changes.
+Phase 4
+2.4
+Scheduling screens, access controls, reports
+- The day-to-day scheduling screens, patient-data access controls, and utilization reporting.
+Phase 4
+
+Clinical Data Migration (RethinkBH)   -   Phase 3 (first patient data) (Driver: Mike, SME: Bryan)
+The same migration engine as the QuickBooks work, pointed at the clinical system (RethinkBH) to bring over patients, providers, and appointments. This is the point where patient health information first enters the system, so it triggers the HIPAA protections, and it depends on the Phase 1 financial data being in place first.
+WBS
+Work package
+Status / phase
+3a.1
+Get clinical data out of RethinkBH
+- Pull patient, provider, and appointment data out of the clinical system.
+Phase 3
+3a.2
+Reshape clinical data for the new system
+- Convert it into the new system's format, including diagnosis and billing codes.
+Phase 3
+3a.3
+Load it in the correct order
+- Load the data so the relationships between patients, providers, and appointments stay intact.
+Phase 3
+
+Security &amp; HIPAA Compliance   -   Cross-cutting (activates with patient data) (Driver: Mike, SME: Bryan)
+A protective wrapper around everything else: keeping the system reachable only through the private network, tying every administrator action to a named person, requiring two-factor login, and sealing off the database. Much of this is delivered early by the infrastructure work, and the transformation lead drives HIPAA enablement ahead of need; the formal HIPAA requirements only activate once patient data is present.
+WBS
+Work package
+Status / phase
+5.1
+Private-network-only access
+- Keep the system reachable only through the closed private network, never the open internet.
+Partly live via Infra
+5.2
+Named, recorded administrator access
+- Tie every administrator action to a specific person and record the session.
+Phase 3+
+5.3
+Two-factor login + location limits
+- Require two-factor sign-in and only allow access from the approved private network.
+Phase 3+
+5.4
+Sealed-off database
+- Keep the database locked down so it only accepts local connections.
+Phase 3+
+
+Appendix A - Authoritative References
+ADR-005 - Phase 1 Scope Reframe (authoritative for current scope).
+ADR-001 - feature-by-feature architecture; ADR-002 - test-first discipline; ADR-003 - tooling; ADR-004 - email intake design.
+docs/ATDD-DOD.md - the 18-point quality checklist and per-stream acceptance criteria.
+docs/PROJECT-INDEX.md - single-page current-state index.
+Vendor statements of work: Nexera (build); Change Shepherd Group (advisory, architecture &amp; change); AltusKC (transformation lead).
+Feature specs: docs/superpowers/specs.
