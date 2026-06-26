@@ -48,6 +48,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setDataState((prev) => {
       const d = clone(prev)
       mut(d)
+      // Track a monotonic revision so the sync layer can compute pending changes.
+      if (!d.syncState) d.syncState = { pendingChanges: 0, rev: 0 }
+      d.syncState.rev = (d.syncState.rev || 0) + 1
+      d.syncState.pendingChanges = Math.max(0, d.syncState.rev - (d.syncState.syncedRev || 0))
       persist(d)
       return d
     })

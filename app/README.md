@@ -33,9 +33,35 @@ authentication and Plane MCP are mocked the same way.
 | **Board** | Work streams by phase, colored by vendor, treatment = status. |
 | **Timeline** | Each stream as a lane across sprints/phases, with gates + milestones. |
 | **Dependencies** | Drag-and-drop canvas, 3 lenses (Functional / Logical / Delivery), critical path, zoom/snap/grid, sticky notes. |
-| **Environment** | Freeform topology — drag containers/cards/firewalls, resize, drag-to-reparent, **lockable firewalls**. |
+| **Environment** | Freeform topology — drag containers/cards/firewalls, **2D resize (8 handles)**, drag-to-reparent, **lockable firewalls**, **plan-coverage badges + AI association**. |
 | **Insights** | Reconciliation engine: WHAT/EVIDENCE/WHY/MOVE findings, source-linked, with generative **Take Action** (to-do / meeting / email / update plan). |
 | **Integrations** | Connectors incl. **Claude (Anthropic · MCP)**, Microsoft 365 sweep, Outlook, Teams, Plane, Gmail, Fireflies, Box, GitHub. |
+| **Admin** | Manage features, matching rules, coverage thresholds, governance and sync. Search-as-you-type, draft/dirty-state, validation, Pull/Push/Resolve + import/export. |
+
+## Next-iteration features
+
+- **2D resizing** — every box-like element (Container, Firewall, sticky Note,
+  service card, panels) exposes N/S/E/W + corner handles. Resize is zoom-aware and
+  snaps to the grid; firewalls widen without getting taller, containers grow
+  taller without getting wider. Minimums + a per-element `lockSize` are honoured.
+  Geometry persists in `environment.canvasSize`/`canvasPos`. Math lives in
+  `src/lib/resize.ts` (unit-tested).
+- **AI plan association** — *Analyze plan coverage* (Environment TOOLS panel)
+  links every service card to Objectives / Streams / Phases / Vendors / DataPlane
+  using a deterministic heuristic matcher (`src/lib/matcher.ts`) with a confidence
+  score, stored rationale, and an LLM hook behind `MatchProvider`. Manual links
+  (set in the service modal) always override AI and are never silently discarded.
+- **Coverage indicators** — each card shows a Covered / Partial / Needs-review /
+  Missing chip; toolbar counters + an "Only show uncovered" filter make gaps
+  one click away. Logic in `src/lib/coverage.ts`.
+- **Sync** — `SyncAdapter` interface with a bundled `LocalSyncAdapter`
+  (`src/lib/sync.ts`); Pull / Push / Resolve-conflicts, last-synced + pending
+  status, JSON payload import/export. Manual-mapping conflicts are reviewable,
+  low-risk settings are last-write-wins.
+
+```bash
+npm test           # vitest — resize math, AI scoring, coverage, sync + conflicts
+```
 
 Cross-cutting: global search, global filters (header), the **Edit** drawer
 (fly-in, edit/add/reorder everything), **Ask AI** flyout, ⋯ menu (PDF / draw.io

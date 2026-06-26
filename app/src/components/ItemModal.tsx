@@ -3,7 +3,10 @@ import { useUI } from '../store/ui'
 import { buildMaps } from '../lib/derive'
 import { planeUrl } from '../lib/activity'
 import { nid } from '../data/helpers'
-import type { PmoData, Service, Status, Stream, Todo } from '../data/types'
+import { derivePlanItems } from '../lib/planItems'
+import { coverageChip, deriveCoverage } from '../lib/coverage'
+import { defaultAdminSettings } from '../lib/admin'
+import type { PlanLink, PmoData, Service, Status, Stream, Todo } from '../data/types'
 
 const LBLC = ['#E6B800', '#E8772E', '#E891AE', '#E03B2E', '#5BBE8B', '#3FB6C2', '#2D6FE0', '#13315C', '#7A52E0', '#C42E8E', '#2E7D52', '#5A6473']
 const segOn: React.CSSProperties = { border: 'none', borderRadius: 7, padding: '7px 16px', fontSize: 14, cursor: 'pointer', lineHeight: 1 }
@@ -187,6 +190,20 @@ export function ItemModal() {
   const envSvcTypeOpts2 = (data.environment.svcTypes || []).map((x) => ({ v: x.id, l: x.label }))
   const envContOpts = [{ v: 'ext', l: 'External cloud' }, ...data.environment.zones.map((z) => ({ v: z.id, l: z.name }))]
 
+  // ---- plan coverage (service items) ----
+  const admin = data.adminSettings || defaultAdminSettings()
+  const planItems = kind === 'service' ? derivePlanItems(data) : []
+  const planTitle: Record<string, string> = {}
+  const planKind: Record<string, string> = {}
+  planItems.forEach((p) => {
+    planTitle[p.id] = p.title
+    planKind[p.id] = p.kind
+  })
+  const svcLinks = kind === 'service' ? (data.planLinks || []).filter((l) => l.canvasItemId === itemId) : []
+  const svcLinksActive = svcLinks.filter((l) => l.status !== 'rejected')
+  const svcCoverage = kind === 'service' ? deriveCoverage(svcLinks, admin) : null
+  const linkablePlan = planItems.filter((p) => !svcLinks.some((l) => l.planItemId === p.id && l.status !== 'rejected'))
+
   // label picker / editor view models
   const itemLabelIds = (kind === 'stream' && (data.streams.find((x) => x.id === itemId) || ({} as Stream)).labelIds) || []
   const labelPickerItems = (data.labels || []).map((l) => {
@@ -235,6 +252,35 @@ export function ItemModal() {
       })
     })
     ui.set({ labelEdit: null })
+  }
+
+  // ---- plan-link handlers (manual override always wins over AI) ----
+  const setLink = (id: string, fn: (l: PlanLink) => void) =>
+    setData((d) => {
+      const l = (d.planLinks || []).find((x) => x.id === id)
+      if (l) {
+        fn(l)
+        l.updatedAt = new Date().toISOString()
+      }
+    })
+  const confirmLink = (id: string) => setLink(id, (l) => { l.source = 'manual'; l.status = 'linked'; l.confidence = Math.max(l.confidence, 1) })
+  const rejectLink = (id: string) => setLink(id, (l) => { l.source = 'manual'; l.status = 'rejected' })
+  const removeLink = (id: string) => setData((d) => { d.planLinks = (d.planLinks || []).filter((x) => x.id !== id) })
+  const addManualLink = (planItemId: string) => {
+    if (!planItemId) return
+    const iso = new Date().toISOString()
+    setData((d) => {
+      d.planLinks = d.planLinks || []
+      const existing = d.planLinks.find((l) => l.canvasItemId === itemId && l.planItemId === planItemId)
+      if (existing) {
+        existing.source = 'manual'
+        existing.status = 'linked'
+        existing.confidence = 1
+        existing.updatedAt = iso
+      } else {
+        d.planLinks.push({ id: nid('lnk'), canvasItemId: itemId, planItemId, source: 'manual', confidence: 1, status: 'linked', rationale: 'Manually linked', createdAt: iso, updatedAt: iso })
+      }
+    })
   }
 
   const onArchive = () => {
@@ -311,6 +357,58 @@ export function ItemModal() {
               placeholder="Add description…"
               style={{ width: '100%', minHeight: 60, border: 'none', outline: 'none', resize: 'vertical', font: "400 14px/1.6 'Libre Franklin'", color: '#2A3242', background: 'transparent', padding: 0, marginBottom: 22 }}
             />
+            {itemView.isService && svcCoverage && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                  <div style={sectLabel}>RELATED PLAN ITEMS</div>
+                  {(() => {
+                    const c = coverageChip(svcCoverage.status)
+                    return (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 9, background: c.bg, color: c.color, font: "700 9px 'IBM Plex Mono',monospace", letterSpacing: '.03em' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.color }} />
+                        {c.label.toUpperCase()}
+                      </span>
+                    )
+                  })()}
+                </div>
+                <div style={{ font: "400 11.5px/1.5 'Libre Franklin'", color: '#6A7382', marginBottom: 12 }}>{svcCoverage.reason}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                  {svcLinksActive.length === 0 && (
+                    <div style={{ font: "500 12px 'Libre Franklin'", color: '#9AA3B2', padding: '8px 10px', background: '#F8FAFC', borderRadius: 8 }}>
+                      No plan items linked yet — run “Analyze plan coverage” on the canvas, or add one below.
+                    </div>
+                  )}
+                  {svcLinksActive.map((l) => (
+                    <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 11px', background: '#F6F7F9', borderRadius: 8 }}>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', font: "600 12.5px 'Libre Franklin'", color: '#1B2330', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {planTitle[l.planItemId] || l.planItemId}
+                        </span>
+                        <span style={{ font: "500 9.5px 'IBM Plex Mono',monospace", color: '#9AA3B2' }}>
+                          {(planKind[l.planItemId] || 'plan').toUpperCase()} · {l.source === 'manual' ? 'MANUAL' : 'AI ' + Math.round(l.confidence * 100) + '%'}
+                          {l.rationale ? ' · ' + l.rationale : ''}
+                        </span>
+                      </span>
+                      {l.source !== 'manual' && (
+                        <button onClick={() => confirmLink(l.id)} title="Confirm this link (manual override)" style={{ flex: 'none', border: '1px solid #BFE0CF', background: '#E4EEE9', color: '#2F6B53', borderRadius: 6, padding: '4px 8px', font: "700 11px 'Libre Franklin'", cursor: 'pointer' }}>✓</button>
+                      )}
+                      <button onClick={() => rejectLink(l.id)} title="Reject — AI won't re-suggest this" style={{ flex: 'none', border: '1px solid #E6A08F', background: '#F6EAE6', color: '#A8553F', borderRadius: 6, padding: '4px 8px', font: "700 11px 'Libre Franklin'", cursor: 'pointer' }}>✕</button>
+                      <button onClick={() => removeLink(l.id)} title="Remove link" style={{ flex: 'none', border: 'none', background: 'none', color: '#B7BEC9', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>🗑</button>
+                    </div>
+                  ))}
+                </div>
+                <select
+                  value=""
+                  onChange={(e) => { addManualLink(e.target.value); e.currentTarget.value = '' }}
+                  style={{ width: '100%', border: 'none', background: '#F1F3F6', borderRadius: 9, padding: '11px 12px', font: "600 13px 'Libre Franklin'", color: '#5A6473', cursor: 'pointer', marginBottom: 22 }}
+                >
+                  <option value="">+ Link a plan item…</option>
+                  {linkablePlan.map((p) => (
+                    <option key={p.id} value={p.id}>{p.kind} · {p.title}</option>
+                  ))}
+                </select>
+              </>
+            )}
             {itemView.isStream && (
               <>
                 <div style={sectLabel}>SUBTASKS</div>

@@ -208,8 +208,111 @@ export interface Environment {
   canvasPos?: Record<string, { x: number; y: number }>
   canvasSize?: Record<string, { w: number; h?: number }>
   fwLocked?: Record<string, boolean>
+  /** Per-element size lock — when set, the resize handles are disabled for that id. */
+  lockSize?: Record<string, boolean>
   notes?: EnvNote[]
   extraFw?: ExtraFw[]
+}
+
+/* ------------------------------------------------------------------ *
+ * Plan ↔ environment association (AI coverage)
+ * ------------------------------------------------------------------ */
+
+/** A normalized, matchable view of any dataset entity the plan is built from. */
+export interface PlanItem {
+  id: string
+  kind: 'objective' | 'stream' | 'phase' | 'vendor' | 'environment' | 'sync'
+  title: string
+  description?: string
+  tags?: string[]
+  vendor?: string
+  phase?: string
+  metadata?: Record<string, unknown>
+}
+
+export type PlanLinkSource = 'ai' | 'manual'
+export type PlanLinkStatus = 'linked' | 'partial' | 'unaddressed' | 'rejected'
+
+/** A single association between an environment/service card and a plan item. */
+export interface PlanLink {
+  id: string
+  /** Environment service id (e.g. "x1", "d1", "a1", "b1"). */
+  canvasItemId: string
+  planItemId: string
+  source: PlanLinkSource
+  confidence: number
+  status: PlanLinkStatus
+  rationale?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** Roll-up coverage state for a single environment item. */
+export type CoverageStatus = 'covered' | 'partial' | 'missing' | 'review'
+
+/* ------------------------------------------------------------------ *
+ * Admin-managed configuration
+ * ------------------------------------------------------------------ */
+
+export type ConflictStrategy = 'lww' | 'review'
+
+export interface AdminSettings {
+  general: {
+    programName: string
+    autoAnalyze: boolean
+  }
+  canvas: {
+    minWidth: number
+    minHeight: number
+    gridSize: number
+    snapDefault: boolean
+  }
+  matcher: {
+    /** Relative weights for the heuristic scorer (0..1 each). */
+    weightTitle: number
+    weightKeyword: number
+    weightVendor: number
+    weightZone: number
+  }
+  coverage: {
+    /** Confidence at/above which an item is considered Covered (0..1). */
+    coverThreshold: number
+    /** Confidence at/above which a match is surfaced for review (0..1). */
+    reviewThreshold: number
+  }
+  sync: {
+    adapter: 'local' | 'remote'
+    endpoint: string
+    autoPush: boolean
+  }
+  governance: {
+    /** When true, AI re-analysis never overwrites manual links. */
+    lockManualLinks: boolean
+    conflictStrategy: ConflictStrategy
+  }
+}
+
+export interface SyncState {
+  lastSyncAt?: string
+  pendingChanges: number
+  lastError?: string
+  /** Monotonic local revision — bumped on every persisted mutation. */
+  rev: number
+  /** Revision at the last successful push — pending = rev − syncedRev. */
+  syncedRev?: number
+}
+
+/** The serializable slice that the sync layer pulls / pushes. */
+export interface AppStatePayload {
+  canvasItems: import('../lib/canvasItems').CanvasItem[]
+  planItems: PlanItem[]
+  planLinks: PlanLink[]
+  adminSettings: AdminSettings
+  metadata: {
+    version: number
+    updatedAt: string
+    source: string
+  }
 }
 
 export interface TimelineData {
@@ -262,6 +365,14 @@ export interface PmoData {
   insightsAt?: number
   lastReportAt: number
   depNotes?: DepNote[]
+  /** AI + manually-curated associations between env items and plan items. */
+  planLinks?: PlanLink[]
+  /** When the last "Analyze plan coverage" run completed. */
+  planAnalyzedAt?: number
+  /** Admin-managed feature, rules, mapping and sync configuration. */
+  adminSettings?: AdminSettings
+  /** Local sync bookkeeping (last synced, pending changes…). */
+  syncState?: SyncState
 }
 
 export type ViewId =
@@ -276,3 +387,4 @@ export type ViewId =
   | 'env'
   | 'insights'
   | 'integrations'
+  | 'admin'
