@@ -60,8 +60,40 @@ authentication and Plane MCP are mocked the same way.
   low-risk settings are last-write-wins.
 
 ```bash
-npm test           # vitest — resize math, AI scoring, coverage, sync + conflicts
+npm test           # vitest — resize math, AI scoring, coverage, sync + conflicts,
+                   #          persistence adapter, server optimistic-concurrency store
 ```
+
+## Shared persistence (Railway + Supabase)
+
+By default the app is local-only (`localStorage`). For durable, shared state the
+Railway server (`app/server.mjs`) exposes a thin, auth-gated persistence API and
+the client auto-syncs to it:
+
+- **Storage** — the whole `PmoData` document lives as one `jsonb` row per
+  workspace in Supabase `public.pmo_state`, guarded by an integer `rev`
+  (optimistic concurrency). The browser never talks to Supabase directly — only
+  the server holds the **service-role** key. The table has RLS enabled with no
+  policies (service-role-only).
+- **Sync** — on load the client hydrates from the server (falling back to
+  `localStorage` when offline); edits debounce-save back. A stale write returns
+  `409` with the current copy and the user picks *Keep mine* / *Load theirs*
+  (manual plan-links are protected). A status pill shows Synced / Saving /
+  Offline / Conflict.
+- **Endpoints** (behind Basic Auth, except `/healthz`):
+  `GET /api/config` → `{ persistence }`, `GET /api/state` → `{ data, rev }`,
+  `PUT /api/state` `{ data, baseRev }` → `200 { ok, rev }` | `409 { conflict }`.
+
+Enable it by setting these Railway service variables (without them the app runs
+fine, just local-only):
+
+| Variable | Value |
+|----------|-------|
+| `SUPABASE_URL` | `https://mpkbzrzfbfviiferujbc.supabase.co` |
+| `SUPABASE_SERVICE_KEY` | the project's **service_role** secret (Supabase → Project Settings → API) |
+| `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` | the shared team login |
+| `PMO_WORKSPACE` *(optional)* | document key, defaults to `default` |
+
 
 Cross-cutting: global search, global filters (header), the **Edit** drawer
 (fly-in, edit/add/reorder everything), **Ask AI** flyout, ⋯ menu (PDF / draw.io
