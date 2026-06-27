@@ -57,6 +57,16 @@ export interface Stream {
   depPos?: Record<string, { x: number; y: number }>
   scheduledDate?: string
   estTime?: string
+  /** Snapshot of the linked Plane project from the last pull. */
+  planeMeta?: PlaneMeta
+}
+
+export interface PlaneMeta {
+  completion: number
+  counts: Record<string, number>
+  identifier?: string
+  url?: string
+  pulledAt: string
 }
 
 export interface Objective {
@@ -150,6 +160,9 @@ export interface PlaneConfig {
   baseUrl: string
   structure: string
   stateMap: Record<string, string>
+  /** When the last full pull from Plane completed (ISO). */
+  lastPullAt?: string
+  lastPullSummary?: { matched: number; imported: number; total: number }
 }
 
 export interface SvcType {
