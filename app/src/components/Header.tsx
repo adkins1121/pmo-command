@@ -1,8 +1,8 @@
 import { useMemo, useRef } from 'react'
-import { useStore } from '../store/store'
+import { useStore, useTheme } from '../store/store'
 import { useUI } from '../store/ui'
 import type { ViewId } from '../data/types'
-import { ACCENT, VIEWS } from '../lib/theme'
+import { VIEWS } from '../lib/theme'
 import { exportJson, freshDefaults, readImportFile } from '../lib/io'
 import { downloadDrawio } from '../lib/drawio'
 
@@ -26,6 +26,7 @@ type FilterKeys = {
 export function Header() {
   const { data, replaceData } = useStore()
   const ui = useUI()
+  const { primary, accent } = useTheme()
   const fileRef = useRef<HTMLInputElement>(null)
 
   const curView = (VIEWS.find((v) => v.id === ui.view) || { label: 'Dashboard' }).label
@@ -127,8 +128,8 @@ export function Header() {
     justifyContent: 'center',
     fontSize: 13,
     color: '#fff',
-    background: ACCENT,
-    boxShadow: `0 2px 10px ${ACCENT}66`,
+    background: primary,
+    boxShadow: `0 2px 10px ${primary}66`,
   }
 
   const closeMenu = () => ui.set({ headerMenuOpen: false })
@@ -463,14 +464,14 @@ export function Header() {
             display: 'flex',
             alignItems: 'center',
             gap: 7,
-            background: 'linear-gradient(135deg,#2D6FE0,#1B9C8E)',
+            background: `linear-gradient(135deg,${primary},${accent})`,
             color: '#fff',
             border: 'none',
             borderRadius: 7,
             padding: '7px 13px',
             font: "700 12px 'Libre Franklin'",
             cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(29,111,224,.34)',
+            boxShadow: `0 2px 8px ${accent}55`,
           }}
         >
           ✦ Ask AI
@@ -565,7 +566,7 @@ export function Header() {
         <button
           onClick={() => ui.update((s) => ({ edit: !s.edit, selectedId: null, editCollapsed: false }))}
           style={{
-            background: ui.edit ? '#3E7C6A' : ACCENT,
+            background: ui.edit ? '#3E7C6A' : primary,
             color: '#fff',
             border: 'none',
             borderRadius: 6,

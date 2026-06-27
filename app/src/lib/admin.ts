@@ -7,6 +7,10 @@ export function defaultAdminSettings(): AdminSettings {
       programName: 'AMDG PMO · ERPNext ABES Program',
       autoAnalyze: false,
     },
+    theme: {
+      primary: '#4A6491',
+      accent: '#1B9C8E',
+    },
     canvas: {
       minWidth: 140,
       minHeight: 72,
@@ -41,6 +45,7 @@ export function mergeAdminSettings(saved?: Partial<AdminSettings>): AdminSetting
   if (!saved) return d
   return {
     general: { ...d.general, ...saved.general },
+    theme: { ...d.theme, ...saved.theme },
     canvas: { ...d.canvas, ...saved.canvas },
     matcher: { ...d.matcher, ...saved.matcher },
     coverage: { ...d.coverage, ...saved.coverage },
@@ -61,6 +66,10 @@ export function validateAdminSettings(s: AdminSettings): ValidationIssue[] {
   const issues: ValidationIssue[] = []
 
   if (!s.general.programName.trim()) issues.push({ path: 'general.programName', message: 'Program name is required.' })
+
+  const hex = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i
+  if (!hex.test(s.theme.primary)) issues.push({ path: 'theme.primary', message: 'Primary must be a hex color (e.g. #4A6491).' })
+  if (!hex.test(s.theme.accent)) issues.push({ path: 'theme.accent', message: 'Accent must be a hex color (e.g. #1B9C8E).' })
 
   if (!inRange(s.canvas.minWidth, 40, 1000)) issues.push({ path: 'canvas.minWidth', message: 'Min width must be 40–1000.' })
   if (!inRange(s.canvas.minHeight, 24, 1000)) issues.push({ path: 'canvas.minHeight', message: 'Min height must be 24–1000.' })
