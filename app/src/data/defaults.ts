@@ -415,6 +415,7 @@ export function getDefaults(): PmoData {
     connections: {
       outlook: { connected: false, account: '' },
       teams: { connected: false, account: '' },
+      claude: { connected: true, account: 'anthropic.com' },
     },
     meName: 'You — AMDG lead',
     labels: defaultLabels(),

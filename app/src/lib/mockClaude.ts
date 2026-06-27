@@ -1,6 +1,7 @@
 import type { Insight, PmoData } from '../data/types'
 import { buildMaps, computeDeps } from './derive'
 import { planeUrl } from './activity'
+import { searchAll, hitSources } from './searchIndex'
 
 const ALT_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2 }
 
@@ -83,32 +84,26 @@ export async function aiSearch(
   query: string,
   sources: string[],
 ): Promise<{ answer: string; results: { source: string; title: string; snippet: string; date: string }[] }> {
-  await delay(850)
-  const { ownerMap } = buildMaps(d)
-  const { blockedBy } = computeDeps(d.streams)
-  const risky = d.streams.filter((s) => s.status === 'risk' || s.status === 'plan')
-  const top = risky[0] || d.streams[0]
-  const owner = (ownerMap[top.ownerId] || ({} as any)).name || 'the owner'
-  const blockers = (d.blockers || []).filter((b) => b.active !== false)
+  await delay(650)
+  // Search EVERY program entity, not just streams/blockers/decisions.
+  const hits = searchAll(d, query)
+  const results = hits.map((h) => ({ source: h.source, title: h.title, snippet: h.snippet, date: h.date || 'in plan' }))
+  const found = hitSources(hits)
+  const connected = (sources || []).filter((s) => s !== 'Claude')
+  const scopeNote = connected.length ? ` Connected sources searched: ${connected.join(', ')}.` : ''
 
-  const answer =
-    `Across ${sources.join(', ')}, the thread most relevant to "${query}" is ${top.code} ${top.name} (owner ${owner}). ` +
-    (blockers.length
-      ? `It's gated by an open blocker — "${blockers[0].text}" (owner ${blockers[0].owner}). `
-      : '') +
-    (blockedBy[top.code]?.length ? `Downstream ${blockedBy[top.code].join(', ')} are waiting on it.` : 'No downstream work is waiting on it yet.')
-
-  const pick = (i: number) => sources[i % sources.length]
-  const results = [
-    { source: pick(0), title: 'Re: ' + top.code + ' ' + top.name, snippet: `Latest on ${top.code}: ${top.blurb}`, date: '2 days ago' },
-    blockers[0]
-      ? { source: pick(1), title: blockers[0].text.slice(0, 48), snippet: `Owner ${blockers[0].owner} flagged this as blocking ${blockers[0].streamCode}.`, date: '3 days ago' }
-      : null,
-    (d.decisions || [])[0]
-      ? { source: pick(2), title: 'Decision: ' + (d.decisions[0].text.slice(0, 44)), snippet: `Raised by ${d.decisions[0].owner}, still ${d.decisions[0].status}.`, date: '5 days ago' }
-      : null,
-  ].filter(Boolean) as { source: string; title: string; snippet: string; date: string }[]
-
+  let answer: string
+  if (hits.length === 0) {
+    answer =
+      `I searched all available AMDG program information — work streams, objectives, phases, to-dos, inbox, decisions, blockers, the environment map, gates, constraints and vendors — but nothing matched "${query}". Try different or broader terms.` +
+      scopeNote
+  } else {
+    const top = hits[0]
+    answer =
+      `Searching across all available information (${found.join(', ')}), the most relevant item for "${query}" is ${top.title} — ${top.snippet}.` +
+      (hits.length > 1 ? ` ${hits.length - 1} more related item${hits.length - 1 === 1 ? '' : 's'} found across ${found.length} source${found.length === 1 ? '' : 's'}.` : '') +
+      scopeNote
+  }
   return { answer, results }
 }
 

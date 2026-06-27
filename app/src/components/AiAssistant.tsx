@@ -30,11 +30,9 @@ export function AiAssistant() {
   const ask = async () => {
     const q = (ui.aiQuery || '').trim()
     if (!q || ui.aiLoading) return
+    // The whole program dataset is always searchable; connected connectors are
+    // added only for attribution. No connectors are required to ask.
     const sources = chips.map((c) => c.name)
-    if (!sources.length) {
-      ui.set({ aiError: 'No sources are connected yet. Connect Outlook, Teams, Plane, Claude and others in the Integrations tab, then ask again.', aiAnswer: '', aiResults: [] })
-      return
-    }
     ui.set({ aiLoading: true, aiError: '', aiAnswer: '', aiResults: null })
     try {
       const { answer, results } = await aiSearch(data, q, sources)
@@ -57,7 +55,7 @@ export function AiAssistant() {
             <span style={{ font: "800 16px 'Libre Franklin'" }}>✦ AI assistant</span>
             <button onClick={() => ui.set({ aiOpen: false })} style={{ background: 'rgba(255,255,255,.18)', border: 'none', color: '#fff', borderRadius: 6, width: 26, height: 26, cursor: 'pointer', fontSize: 14 }}>✕</button>
           </div>
-          <div style={{ font: "500 11.5px 'Libre Franklin'", opacity: 0.92, marginTop: 4 }}>Searches your connected sources and answers in plain language.</div>
+          <div style={{ font: "500 11.5px 'Libre Franklin'", opacity: 0.92, marginTop: 4 }}>Searches all your program data — and any connected sources — and answers in plain language.</div>
         </div>
 
         <div style={{ padding: '14px 18px', borderBottom: '1px solid #EEF1F4' }}>
@@ -70,22 +68,19 @@ export function AiAssistant() {
                 ask()
               }
             }}
-            placeholder="Ask across your connectors…  (Enter)"
+            placeholder="Ask across all your program data…  (Enter)"
             style={{ width: '100%', minHeight: 56, resize: 'vertical', border: '1px solid #E4E8EE', borderRadius: 9, padding: '10px 12px', font: "500 13px/1.5 'Libre Franklin'", color: '#2A3242', outline: 'none' }}
           />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
-            {chips.length ? (
-              chips.map((c) => (
-                <span key={c.name} style={{ font: "600 9.5px 'IBM Plex Mono',monospace", color: c.color, background: c.bg, borderRadius: 7, padding: '3px 8px' }}>
-                  {c.name}
-                </span>
-              ))
-            ) : (
-              <span style={{ font: "500 11px 'Libre Franklin'", color: '#A8553F' }}>No sources connected — open Integrations to connect.</span>
-            )}
+            <span style={{ font: "600 9.5px 'IBM Plex Mono',monospace", color: '#2F6B53', background: '#E4EEE9', borderRadius: 7, padding: '3px 8px' }}>All program data</span>
+            {chips.map((c) => (
+              <span key={c.name} style={{ font: "600 9.5px 'IBM Plex Mono',monospace", color: c.color, background: c.bg, borderRadius: 7, padding: '3px 8px' }}>
+                {c.name}
+              </span>
+            ))}
           </div>
           <button onClick={ask} style={{ marginTop: 10, width: '100%', background: '#15202E', color: '#fff', border: 'none', borderRadius: 9, padding: '10px', font: "700 12.5px 'Libre Franklin'", cursor: 'pointer' }}>
-            {ui.aiLoading ? 'Searching…' : 'Search connected sources'}
+            {ui.aiLoading ? 'Searching…' : 'Search all information'}
           </button>
         </div>
 

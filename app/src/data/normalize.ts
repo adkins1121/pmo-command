@@ -31,6 +31,8 @@ export function normalize(d: any): PmoData {
   })
   if (!d.connections)
     d.connections = { outlook: { connected: false, account: '' }, teams: { connected: false, account: '' } }
+  // Claude is a first-class integration powering the AI assistant — on by default.
+  if (!d.connections.claude) d.connections.claude = { connected: true, account: 'anthropic.com' }
   if (d.meName === undefined) d.meName = 'You — AMDG lead'
   if (!d.labels)
     d.labels = [
